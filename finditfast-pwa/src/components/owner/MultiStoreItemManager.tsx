@@ -23,10 +23,11 @@ export const MultiStoreItemManager: React.FC = () => {
       setLoading(true);
       setError(null);
 
-      // Get all stores owned by this user that have floorplans
+      // Get all approved stores owned by this user that have floorplans
       const storesQuery = query(
-        collection(db, 'stores'),
-        where('ownerId', '==', user.uid)
+        collection(db, 'storeRequests'),
+        where('ownerId', '==', user.uid),
+        where('status', '==', 'approved')
       );
       
       const storesSnapshot = await getDocs(storesQuery);

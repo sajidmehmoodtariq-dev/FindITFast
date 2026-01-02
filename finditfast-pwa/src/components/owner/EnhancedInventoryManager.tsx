@@ -72,19 +72,22 @@ export const EnhancedInventoryManager: React.FC = () => {
         return;
       }
 
-      // Get actual stores created from these requests
-      const storesQuery = query(
-        collection(db, 'stores'),
-        where('ownerId', '==', user.uid)
-      );
-      
-      const storesSnapshot = await getDocs(storesQuery);
-      const allStoresData = storesSnapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data(),
-        createdAt: doc.data().createdAt?.toDate() || new Date(),
-        updatedAt: doc.data().updatedAt?.toDate() || new Date(),
-      })) as Store[];
+      // The approved requests ARE the stores (storeRequests collection with status='approved')
+      // No need to query a separate 'stores' collection
+      const allStoresData = approvedRequestsData.map(request => {
+        const requestData = request as any; // Type assertion for flexibility
+        return {
+          id: request.id,
+          name: requestData.name || requestData.storeName,
+          address: requestData.address || '',
+          location: requestData.location || { latitude: 0, longitude: 0 },
+          ownerId: requestData.ownerId || user.uid,
+          createdAt: requestData.createdAt || new Date(),
+          updatedAt: requestData.updatedAt || new Date(),
+          floorplanUrl: requestData.floorplanUrl,
+          floorplanData: requestData.floorplanData
+        } as Store;
+      });
 
       console.log('Found stores:', allStoresData.length);
 

@@ -57,11 +57,13 @@ export interface Item {
     y: number;
   };
   price?: string; // Changed to string to support formats like "$5.99"
+  inStock?: boolean; // In-stock status
   verified: boolean;
   verifiedAt: Timestamp;
   createdAt: Timestamp;
   updatedAt: Timestamp;
   reportCount: number;
+  deleted?: boolean; // Soft delete flag
   // Metadata fields for Safari/iOS compatibility
   hasImageData?: boolean;
   imageMimeType?: string;

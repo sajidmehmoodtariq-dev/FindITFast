@@ -109,11 +109,11 @@ export const OwnerDashboard: React.FC = () => {
           // Handle case where store has been deleted
           if (!storeData) {
             setError('This store has been deleted or is no longer available. Please contact support if you believe this is an error.');
-            setStore(null);
-            setItems([]);
+            // setStore(null);
+            // setItems([]);
           } else {
-            setStore(storeData);
-            setItems(storeItems);
+            // setStore(storeData);
+            // setItems(storeItems);
           }
         } catch (error) {
           console.error('Error loading store data:', error);
@@ -133,32 +133,19 @@ export const OwnerDashboard: React.FC = () => {
       
       setStoresLoading(true);
       try {
-        // Get all store requests by this owner
+        // Get all store requests by this owner from storeRequests collection
+        // This includes pending, approved, and rejected stores
         const storeRequestsQuery = query(
           collection(db, 'storeRequests'), 
           where('requestedBy', '==', user.uid)
         );
         const storeRequestsSnapshot = await getDocs(storeRequestsQuery);
-        const storeRequestsData = storeRequestsSnapshot.docs.map(doc => ({
+        const allStores = storeRequestsSnapshot.docs.map(doc => ({
           id: doc.id,
           ...doc.data(),
-          type: 'request'
+          type: doc.data().status === 'approved' ? 'store' : 'request'
         }));
         
-        // Get all created stores owned by this user
-        const storesQuery = query(
-          collection(db, 'stores'), 
-          where('ownerId', '==', user.uid)
-        );
-        const storesSnapshot = await getDocs(storesQuery);
-        const storesData = storesSnapshot.docs.map(doc => ({
-          id: doc.id,
-          ...doc.data(),
-          type: 'store'
-        }));
-        
-        // Combine both sets of results
-        const allStores = [...storeRequestsData, ...storesData];
         setAllOwnerStores(allStores);
       } catch (error) {
         console.error('Error loading owner stores:', error);
@@ -948,7 +935,7 @@ export const OwnerDashboard: React.FC = () => {
                         onClick={() => {
                           setShowStoreRequestForm(false);
                           setFormData({ storeName: '', storeType: '', address: '', documents: [] });
-                          setLocationData(null);
+                          // setLocationData(null);
                         }}
                         className="px-6 py-3 border border-gray-300 text-gray-700 rounded-xl font-medium hover:bg-gray-50 transition-colors"
                       >

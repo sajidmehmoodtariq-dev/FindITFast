@@ -67,31 +67,19 @@ export const OwnerStoreManager: React.FC = () => {
     setStoresLoading(true);
     try {
       // Get all store requests by this owner
+      // Get all store requests by this owner from storeRequests collection
+      // This includes pending, approved, and rejected stores
       const storeRequestsQuery = query(
         collection(db, 'storeRequests'), 
         where('requestedBy', '==', user.uid)
       );
       const storeRequestsSnapshot = await getDocs(storeRequestsQuery);
-      const storeRequestsData = storeRequestsSnapshot.docs.map(doc => ({
+      const allStores = storeRequestsSnapshot.docs.map(doc => ({
         id: doc.id,
         ...doc.data(),
-        type: 'request'
+        type: doc.data().status === 'approved' ? 'store' : 'request'
       }));
       
-      // Get all created stores owned by this user
-      const storesQuery = query(
-        collection(db, 'stores'), 
-        where('ownerId', '==', user.uid)
-      );
-      const storesSnapshot = await getDocs(storesQuery);
-      const storesData = storesSnapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data(),
-        type: 'store'
-      }));
-      
-      // Combine both sets of results
-      const allStores = [...storeRequestsData, ...storesData];
       setAllOwnerStores(allStores);
     } catch (error) {
       console.error('Error loading owner stores:', error);

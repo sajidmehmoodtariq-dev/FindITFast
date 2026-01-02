@@ -13,13 +13,47 @@ export const fixOwnerProfile = async () => {
     console.log('🔧 FIXING OWNER PROFILE');
     console.log('👤 Current User:', user.email, user.uid);
 
-    // Update the owner document with the missing firebaseUid
-    await updateDoc(doc(db, 'storeOwners', user.uid), {
+    // First, find the owner document by firebaseUid
+    const ownersSnapshot = await getDocs(
+      query(collection(db, 'storeOwners'), where('firebaseUid', '==', user.uid))
+    );
+
+    if (ownersSnapshot.empty) {
+      console.log('❌ No owner document found with firebaseUid:', user.uid);
+      console.log('💡 The owner document might not exist yet or uses a different structure');
+      
+      // Try to find owner by email as fallback
+      const emailSnapshot = await getDocs(
+        query(collection(db, 'storeOwners'), where('email', '==', user.email))
+      );
+      
+      if (!emailSnapshot.empty) {
+        const ownerDoc = emailSnapshot.docs[0];
+        console.log('🔍 Found owner by email:', ownerDoc.id);
+        
+        // Update with correct firebaseUid
+        await updateDoc(doc(db, 'storeOwners', ownerDoc.id), {
+          firebaseUid: user.uid,
+          updatedAt: new Date()
+        });
+        
+        console.log('✅ Successfully updated firebaseUid for owner:', ownerDoc.id);
+      } else {
+        console.log('❌ No owner document found by email either:', user.email);
+      }
+      return;
+    }
+
+    const ownerDoc = ownersSnapshot.docs[0];
+    console.log('✅ Found owner document:', ownerDoc.id);
+
+    // Update the owner document
+    await updateDoc(doc(db, 'storeOwners', ownerDoc.id), {
       firebaseUid: user.uid,
       updatedAt: new Date()
     });
 
-    console.log('✅ Successfully fixed firebaseUid for owner:', user.uid);
+    console.log('✅ Successfully fixed firebaseUid for owner:', ownerDoc.id);
     
   } catch (error) {
     console.error('❌ Error fixing owner profile:', error);

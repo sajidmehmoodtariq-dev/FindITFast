@@ -583,28 +583,15 @@ export const AdminDashboard: React.FC = () => {
       const storeRequestsSnapshot = await getDocs(storeRequestsQuery);
       console.log(`📋 Found ${storeRequestsSnapshot.size} store requests to DELETE`);
       
-      // Get all stores by this owner (using ownerId field)
-      const storesQuery = query(
-        collection(db, 'stores'),
-        where('ownerId', '==', ownerId)
-      );
-      const storesSnapshot = await getDocs(storesQuery);
-      console.log(`🏪 Found ${storesSnapshot.size} stores to DELETE`);
-      
       // Collect all store IDs for deleting related items
       const storeIds = new Set<string>();
       
-      // Add store IDs from store requests
+      // Add store IDs from store requests (all stores are in storeRequests collection)
       storeRequestsSnapshot.docs.forEach(doc => {
+        storeIds.add(doc.id); // The document ID is the store ID
         const data = doc.data();
         if (data.storeId) storeIds.add(data.storeId);
         if (data.storeName) storeIds.add(data.storeName); // Sometimes items reference by name
-      });
-      
-      // Add store IDs from stores collection
-      storesSnapshot.docs.forEach(doc => {
-        storeIds.add(doc.id);
-        const data = doc.data();
         if (data.name) storeIds.add(data.name); // Sometimes items reference by name
       });
       
@@ -650,15 +637,6 @@ export const AdminDashboard: React.FC = () => {
         }
       }
       
-      // HARD DELETE all stores
-      for (const storeDoc of storesSnapshot.docs) {
-        try {
-          await deleteDoc(doc(db, 'stores', storeDoc.id));
-          console.log(`✅ DELETED store: ${storeDoc.id}`);
-        } catch (error) {
-          console.warn(`⚠️ Error deleting store ${storeDoc.id}:`, error);
-        }
-      }
       
       // HARD DELETE all store requests
       for (const requestDoc of storeRequestsSnapshot.docs) {
