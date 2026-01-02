@@ -1,11 +1,9 @@
 import { ItemService, StoreService } from './firestoreService';
 // import { trackSearch } from './analyticsService';
 // Import types are used in JSDoc comments and type annotations
-import type { SearchResult, SearchHistory } from '../types/search';
+import type { SearchResult } from '../types/search';
 
 export class SearchService {
-  private static readonly SEARCH_HISTORY_KEY = 'finditfast_search_history';
-  private static readonly MAX_HISTORY_ITEMS = 10;
 
   /**
    * Search for items across all stores
@@ -109,9 +107,6 @@ export class SearchService {
       } catch (error) {
         console.log('Analytics tracking failed:', error);
       }
-
-      // Save search to history
-      this.saveSearchToHistory(query);
 
       return rankedResults;
     } catch (error) {
@@ -292,70 +287,13 @@ export class SearchService {
     });
   }
 
-  /**
-   * Save search query to local storage history
-   */
-  private static saveSearchToHistory(query: string): void {
-    try {
-      const history = this.getSearchHistory();
-      const newEntry: SearchHistory = {
-        id: Date.now().toString(),
-        query: query.trim(),
-        timestamp: new Date()
-      };
 
-      // Remove duplicate if exists
-      const filteredHistory = history.filter(item => 
-        item.query.toLowerCase() !== query.toLowerCase()
-      );
 
-      // Add new entry at the beginning
-      const updatedHistory = [newEntry, ...filteredHistory]
-        .slice(0, this.MAX_HISTORY_ITEMS);
 
-      localStorage.setItem(this.SEARCH_HISTORY_KEY, JSON.stringify(updatedHistory));
-    } catch (error) {
-      console.warn('Failed to save search history:', error);
-    }
-  }
 
-  /**
-   * Get search history from local storage
-   */
-  static getSearchHistory(): SearchHistory[] {
-    try {
-      const historyJson = localStorage.getItem(this.SEARCH_HISTORY_KEY);
-      if (!historyJson) return [];
 
-      const history = JSON.parse(historyJson);
-      return history.map((item: any) => ({
-        ...item,
-        timestamp: new Date(item.timestamp)
-      }));
-    } catch (error) {
-      console.warn('Failed to load search history:', error);
-      return [];
-    }
-  }
 
-  /**
-   * Clear search history
-   */
-  static clearSearchHistory(): void {
-    try {
-      localStorage.removeItem(this.SEARCH_HISTORY_KEY);
-    } catch (error) {
-      console.warn('Failed to clear search history:', error);
-    }
-  }
 
-  /**
-   * Get recent searches (last 5)
-   */
-  static getRecentSearches(): string[] {
-    const history = this.getSearchHistory();
-    return history.slice(0, 5).map(item => item.query);
-  }
 
   /**
    * Search with enhanced filtering and location awareness

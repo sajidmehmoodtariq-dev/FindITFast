@@ -12,9 +12,3 @@ export interface SearchState {
   error: string | null;
   hasSearched: boolean;
 }
-
-export interface SearchHistory {
-  id: string;
-  query: string;
-  timestamp: Date;
-}

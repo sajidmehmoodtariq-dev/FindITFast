@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Timestamp } from 'firebase/firestore';
 import { ItemService, StorePlanService } from '../../services/firestoreService';
 import { validateAndPrepareImage } from '../../utils/imageCompression';
-import { fileToBase64, validateImageFile } from '../../utilities/imageUtils';
+import { validateImageFile } from '../../utilities/imageUtils';
 import { getStorePlanImageUrl } from '../../utils/storePlanCompatibility';
 import { useAuth } from '../../contexts/AuthContext';
 import type { Store, Item, StorePlan } from '../../types';

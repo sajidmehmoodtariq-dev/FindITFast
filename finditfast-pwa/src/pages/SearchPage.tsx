@@ -39,7 +39,6 @@ export const SearchPage: React.FC = () => {
     error: null,
     hasSearched: false
   });
-  const [recentSearches, setRecentSearches] = useState<string[]>([]);
   const [showLocationPrompt, setShowLocationPrompt] = useState(false);
   
   // Geolocation hook for distance calculations
@@ -55,33 +54,7 @@ export const SearchPage: React.FC = () => {
     }
   }, [geolocation.permission, geolocation.userLocation, showLocationPrompt]);
 
-  // Load recent searches from localStorage on component mount
-  useEffect(() => {
-    const savedSearches = localStorage.getItem('finditfast_recent_searches');
-    if (savedSearches) {
-      try {
-        const parsed = JSON.parse(savedSearches);
-        setRecentSearches(Array.isArray(parsed) ? parsed : []);
-      } catch (error) {
-        console.error('Failed to parse recent searches:', error);
-      }
-    }
-  }, []);
 
-  // Save search to recent searches
-  const saveToRecentSearches = useCallback((query: string) => {
-    if (!query.trim()) return;
-    
-    setRecentSearches(prev => {
-      const filtered = prev.filter(search => search.toLowerCase() !== query.toLowerCase());
-      const updated = [query, ...filtered].slice(0, 5); // Keep only 5 recent searches
-      
-      // Save to localStorage
-      localStorage.setItem('finditfast_recent_searches', JSON.stringify(updated));
-      
-      return updated;
-    });
-  }, []);
 
   const performSearch = useCallback(async (query: string) => {
     if (!query.trim()) return;
@@ -103,9 +76,6 @@ export const SearchPage: React.FC = () => {
         results,
         isLoading: false
       }));
-
-      // Save to recent searches after successful search
-      saveToRecentSearches(query);
     } catch (error) {
       setSearchState(prev => ({
         ...prev,
@@ -114,7 +84,7 @@ export const SearchPage: React.FC = () => {
         error: error instanceof Error ? error.message : 'Search failed'
       }));
     }
-  }, [saveToRecentSearches, geolocation.userLocation]);
+  }, [geolocation.userLocation]);
 
   // Handle debounced search
   useEffect(() => {
@@ -168,10 +138,7 @@ export const SearchPage: React.FC = () => {
     setSearchInput(value);
   }, []);
 
-  const handleRecentSearchClick = useCallback((query: string) => {
-    setSearchInput(query);
-    performSearch(query);
-  }, [performSearch]);
+
 
   const handleResultClick = useCallback((result: SearchResult) => {
     // Use the store request document ID for navigation, not the item's storeId
@@ -242,61 +209,6 @@ export const SearchPage: React.FC = () => {
 
           {/* Admin Panel section removed - accessible via gear icon in navigation bar */}
 
-          {/* Store Owners Section - Hidden during search */}
-          {!searchInput.trim() && (
-            <div className="px-4 mb-6">
-              <div className="bg-gradient-to-br from-white to-green-50 rounded-2xl p-5 shadow-lg border border-green-100">
-                <div className="flex items-center mb-4">
-                  <div className="w-8 h-8 bg-gradient-to-r from-green-500 to-emerald-500 rounded-2xl flex items-center justify-center mr-3">
-                    <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
-                    </svg>
-                  </div>
-                  <h2 className="text-lg font-bold text-green-800">Store Owners</h2>
-                </div>
-                <p className="text-sm text-green-700 mb-5 font-medium">
-                  Join our platform to upload your store layout and help customers find products easily.
-                </p>
-                <button 
-                  onClick={() => navigate('/owner/auth?mode=signup')}
-                  className="w-full bg-gradient-to-r from-green-500 to-emerald-500 text-white py-3 px-4 rounded-2xl font-bold hover:from-green-600 hover:to-emerald-600 transition-all transform hover:scale-105 flex items-center justify-center shadow-lg"
-                >
-                  <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
-                  </svg>
-                  Store Owner Sign Up
-                </button>
-              </div>
-            </div>
-          )}
-
-
-
-
-
-          {/* Recently Searched Section - Hidden during search */}
-          {!searchInput.trim() && recentSearches.length > 0 && (
-            <div className="px-4 mb-6">
-              <h3 className="text-xl font-bold text-purple-800 mb-4">Recently Searched</h3>
-              <div className="space-y-3">
-                {recentSearches.map((search, index) => (
-                  <button
-                    key={index}
-                    onClick={() => handleRecentSearchClick(search)}
-                    className="flex items-center bg-gradient-to-r from-white to-purple-50 rounded-2xl p-4 shadow-md w-full text-left hover:from-purple-50 hover:to-purple-100 transition-all transform hover:scale-105 border border-purple-100"
-                  >
-                    <div className="w-10 h-10 bg-gradient-to-r from-purple-400 to-pink-400 rounded-2xl flex items-center justify-center mr-3">
-                      <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                      </svg>
-                    </div>
-                    <span className="text-purple-800 font-semibold">{search}</span>
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
-
           {/* Location Permission Banner for distance display */}
           {showLocationPrompt && !searchInput.trim() && (
             <div className="px-4 mb-6">
@@ -331,6 +243,34 @@ export const SearchPage: React.FC = () => {
                     Skip
                   </button>
                 </div>
+              </div>
+            </div>
+          )}
+
+          {/* Store Owners Section - Hidden during search */}
+          {!searchInput.trim() && (
+            <div className="px-4 mb-6">
+              <div className="bg-gradient-to-br from-white to-green-50 rounded-2xl p-5 shadow-lg border border-green-100">
+                <div className="flex items-center mb-4">
+                  <div className="w-8 h-8 bg-gradient-to-r from-green-500 to-emerald-500 rounded-2xl flex items-center justify-center mr-3">
+                    <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+                    </svg>
+                  </div>
+                  <h2 className="text-lg font-bold text-green-800">Store Owners</h2>
+                </div>
+                <p className="text-sm text-green-700 mb-5 font-medium">
+                  Join our platform to upload your store layout and help customers find products easily.
+                </p>
+                <button 
+                  onClick={() => navigate('/owner/auth?mode=signup')}
+                  className="w-full bg-gradient-to-r from-green-500 to-emerald-500 text-white py-3 px-4 rounded-2xl font-bold hover:from-green-600 hover:to-emerald-600 transition-all transform hover:scale-105 flex items-center justify-center shadow-lg"
+                >
+                  <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+                  </svg>
+                  Store Owner Sign Up
+                </button>
               </div>
             </div>
           )}
