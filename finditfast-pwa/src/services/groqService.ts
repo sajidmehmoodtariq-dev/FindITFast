@@ -18,7 +18,7 @@ interface GroqErrorResponse {
 
 type GroqResponse = GroqItemAnalysis | GroqErrorResponse;
 
-const GROQ_API_KEY = import.meta.env.VITE_GROQ_API_KEY || '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';
+const GROQ_API_KEY = import.meta.env.VITE_GROQ_API_KEY;
 const GROQ_API_URL = 'https://api.groq.com/openai/v1/chat/completions';
 const MODEL = 'meta-llama/llama-4-scout-17b-16e-instruct';
 
