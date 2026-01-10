@@ -164,19 +164,34 @@ service cloud.firestore {
       // Anyone can create reports (users reporting issues)
       allow create: if true;
       
-      // Only store owners can update reports for items in their stores, or admins
-      allow update: if isAdmin() || (isAuthenticated() && 
-                       isStoreOwner() &&
-                       exists(/databases/$(database)/documents/items/$(resource.data.itemId)) &&
-                       exists(/databases/$(database)/documents/stores/$(get(/databases/$(database)/documents/items/$(resource.data.itemId)).data.storeId)) &&
-                       get(/databases/$(database)/documents/stores/$(get(/databases/$(database)/documents/items/$(resource.data.itemId)).data.storeId)).data.ownerId == request.auth.uid);
+      // Authenticated users can update reports - simplified rule
+      // Check if user owns a store that matches the report's storeId
+      allow update: if isAuthenticated() && (
+        isAdmin() ||
+        // Check if store exists in stores collection with matching ownerId
+        (exists(/databases/$(database)/documents/stores/$(resource.data.storeId)) &&
+         get(/databases/$(database)/documents/stores/$(resource.data.storeId)).data.ownerId == request.auth.uid) ||
+        // Check if store exists in storeRequests collection with matching ownerId
+        (exists(/databases/$(database)/documents/storeRequests/$(resource.data.storeId)) &&
+         get(/databases/$(database)/documents/storeRequests/$(resource.data.storeId)).data.ownerId == request.auth.uid) ||
+        // Check if store exists in storeRequests collection with matching requestedBy
+        (exists(/databases/$(database)/documents/storeRequests/$(resource.data.storeId)) &&
+         get(/databases/$(database)/documents/storeRequests/$(resource.data.storeId)).data.requestedBy == request.auth.uid)
+      );
       
-      // Only store owners can delete reports for items in their stores, or admins
-      allow delete: if isAdmin() || (isAuthenticated() && 
-                       isStoreOwner() &&
-                       exists(/databases/$(database)/documents/items/$(resource.data.itemId)) &&
-                       exists(/databases/$(database)/documents/stores/$(get(/databases/$(database)/documents/items/$(resource.data.itemId)).data.storeId)) &&
-                       get(/databases/$(database)/documents/stores/$(get(/databases/$(database)/documents/items/$(resource.data.itemId)).data.storeId)).data.ownerId == request.auth.uid);
+      // Same logic for delete
+      allow delete: if isAuthenticated() && (
+        isAdmin() ||
+        // Check if store exists in stores collection with matching ownerId
+        (exists(/databases/$(database)/documents/stores/$(resource.data.storeId)) &&
+         get(/databases/$(database)/documents/stores/$(resource.data.storeId)).data.ownerId == request.auth.uid) ||
+        // Check if store exists in storeRequests collection with matching ownerId
+        (exists(/databases/$(database)/documents/storeRequests/$(resource.data.storeId)) &&
+         get(/databases/$(database)/documents/storeRequests/$(resource.data.storeId)).data.ownerId == request.auth.uid) ||
+        // Check if store exists in storeRequests collection with matching requestedBy
+        (exists(/databases/$(database)/documents/storeRequests/$(resource.data.storeId)) &&
+         get(/databases/$(database)/documents/storeRequests/$(resource.data.storeId)).data.requestedBy == request.auth.uid)
+      );
     }
 
     // Store requests collection

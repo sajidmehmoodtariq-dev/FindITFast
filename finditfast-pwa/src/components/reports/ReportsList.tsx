@@ -21,18 +21,33 @@ export const ReportsList: React.FC<ReportsListProps> = ({ storeOwnerId }) => {
       setLoading(true);
       console.log('🔍 Loading reports for store owner:', storeOwnerId);
       
+      if (!storeOwnerId) {
+        console.warn('⚠️ No store owner ID provided');
+        setReports([]);
+        return;
+      }
+      
       // Get all reports for stores owned by this user
       const allReports = await ReportService.getByStoreOwner(storeOwnerId);
       console.log('📊 Reports loaded:', allReports.length);
       
       setReports(allReports);
+      
+      // If no reports found, optionally show demo data
+      if (allReports.length === 0) {
+        console.log('ℹ️ No reports found for this owner');
+      }
     } catch (error) {
-      console.error('Failed to load reports:', error);
-      // For demo purposes, show some sample data when real data fails to load
+      console.error('❌ Failed to load reports:', error);
       const errorMessage = error instanceof Error ? error.message : String(error);
-      if (errorMessage?.includes('permission') || errorMessage?.includes('offline')) {
-        console.log('🎭 Loading demo reports due to connection/permission issues');
-        setReports(getDemoReports());
+      console.error('Error details:', errorMessage);
+      
+      // For demo purposes, show some sample data when real data fails to load
+      if (errorMessage?.includes('permission') || errorMessage?.includes('offline') || errorMessage?.includes('404')) {
+        console.log('🎭 Connection issue detected, showing empty state');
+        setReports([]);
+      } else {
+        setReports([]);
       }
     } finally {
       setLoading(false);
