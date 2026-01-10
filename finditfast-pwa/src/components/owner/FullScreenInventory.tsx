@@ -5,6 +5,7 @@ import { validateAndPrepareImage } from '../../utils/imageCompression';
 import { validateImageFile } from '../../utilities/imageUtils';
 import { getStorePlanImageUrl } from '../../utils/storePlanCompatibility';
 import { useAuth } from '../../contexts/AuthContext';
+import { RapidItemCapture } from './RapidItemCapture';
 import type { Store, Item, StorePlan } from '../../types';
 
 interface FullScreenInventoryProps {
@@ -42,6 +43,7 @@ export const FullScreenInventory: React.FC<FullScreenInventoryProps> = ({ store,
   const [filterCategory, setFilterCategory] = useState<string>('all');
   const [editMode, setEditMode] = useState<EditMode>('none');
   const [editingItem, setEditingItem] = useState<Item | null>(null);
+  const [showRapidCapture, setShowRapidCapture] = useState(false);
   
   // Zoom functionality for floorplan
   const [zoomLevel, setZoomLevel] = useState(1);
@@ -654,6 +656,15 @@ export const FullScreenInventory: React.FC<FullScreenInventoryProps> = ({ store,
                       ))}
                     </select>
                     <button
+                      onClick={() => setShowRapidCapture(true)}
+                      className="px-6 py-2 bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 text-white rounded-lg transition-all shadow-md hover:shadow-lg whitespace-nowrap flex items-center gap-2 font-semibold"
+                    >
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                      </svg>
+                      ⚡ Rapid Capture
+                    </button>
+                    <button
                       onClick={handleAddNewItem}
                       className="px-6 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg transition-colors whitespace-nowrap"
                     >
@@ -1251,6 +1262,16 @@ export const FullScreenInventory: React.FC<FullScreenInventoryProps> = ({ store,
             </div>
           </div>
         </div>
+      )}
+      
+      {/* Rapid Capture Mode */}
+      {showRapidCapture && (
+        <RapidItemCapture
+          store={store}
+          storePlans={storePlans}
+          onClose={() => setShowRapidCapture(false)}
+          onItemAdded={() => loadData()}
+        />
       )}
     </div>
   );

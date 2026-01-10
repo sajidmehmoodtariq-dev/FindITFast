@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { FloorplanManager, OwnerStoreManager, EnhancedInventoryManager } from '../components/owner';
+import { ReportsList } from '../components/reports/ReportsList';
 import { StoreService, ItemService } from '../services/firestoreService';
 import { collection, query, where, getDocs, onSnapshot, addDoc, serverTimestamp, doc, deleteDoc } from 'firebase/firestore';
 import { db } from '../services/firebase';
@@ -91,6 +92,15 @@ export const OwnerDashboard: React.FC = () => {
       icon: (
         <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
+        </svg>
+      )
+    },
+    { 
+      id: 'reports', 
+      label: 'User Reports', 
+      icon: (
+        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
         </svg>
       )
     }
@@ -1139,6 +1149,33 @@ export const OwnerDashboard: React.FC = () => {
           {activeTab === 'inventory' && (
             <div className="bg-gray-50 min-h-screen">
               <EnhancedInventoryManager />
+            </div>
+          )}
+
+          {activeTab === 'reports' && ownerProfile && (
+            <div className="bg-white rounded-xl shadow-sm p-6">
+              <div className="mb-6">
+                <h2 className="text-2xl font-bold text-gray-900 mb-2">User Reports</h2>
+                <p className="text-gray-600">View and manage reports from users about items in your store</p>
+                {console.log('👤 Owner Profile:', ownerProfile)}
+                {console.log('🆔 Owner ID:', ownerProfile.id)}
+                {console.log('👥 User UID:', user?.uid)}
+                {console.log('🔑 Firebase UID in profile:', ownerProfile.firebaseUid)}
+              </div>
+              {/* Use firebaseUid first (what stores actually use), fall back to profile.id, then user.uid */}
+              {ownerProfile.firebaseUid ? (
+                <ReportsList storeOwnerId={ownerProfile.firebaseUid} />
+              ) : user?.uid ? (
+                <ReportsList storeOwnerId={user.uid} />
+              ) : ownerProfile.id ? (
+                <ReportsList storeOwnerId={ownerProfile.id} />
+              ) : (
+                <div className="text-center py-12">
+                  <div className="text-gray-400 text-5xl mb-4">⚠️</div>
+                  <h3 className="text-lg font-medium text-gray-900 mb-2">Unable to Load Reports</h3>
+                  <p className="text-gray-600">Owner profile not found. Please try refreshing the page.</p>
+                </div>
+              )}
             </div>
           )}
           </div>

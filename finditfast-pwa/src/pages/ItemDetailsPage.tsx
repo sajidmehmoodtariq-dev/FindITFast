@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { ItemService, StoreService } from '../services/firestoreService';
 import { MobileLayout, MobileContent, MobileHeader } from '../components/common/MobileLayout';
 import { LazyImage } from '../components/performance/LazyLoading';
+import { ReportProblemModal } from '../components/reports/ReportProblemModal';
 import type { SearchResult } from '../types/search';
 
 export const ItemDetailsPage: React.FC = () => {
@@ -12,6 +13,7 @@ export const ItemDetailsPage: React.FC = () => {
   const [item, setItem] = useState<SearchResult | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [showReportModal, setShowReportModal] = useState(false);
 
   useEffect(() => {
     const loadItemDetails = async () => {
@@ -304,6 +306,16 @@ export const ItemDetailsPage: React.FC = () => {
                   </svg>
                   I Have Arrived
                 </button>
+
+                <button
+                  onClick={() => setShowReportModal(true)}
+                  className="w-full bg-white border-2 border-red-500 text-red-600 py-3 px-4 rounded-xl font-medium hover:bg-red-50 transition-colors flex items-center justify-center"
+                >
+                  <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                  </svg>
+                  Report a Problem
+                </button>
               </div>
             </div>
 
@@ -323,6 +335,19 @@ export const ItemDetailsPage: React.FC = () => {
           </div>
         </div>
       </MobileContent>
+
+      {/* Report Problem Modal */}
+      {showReportModal && item && (
+        <ReportProblemModal
+          item={item}
+          store={item.store}
+          onClose={() => setShowReportModal(false)}
+          onReportSubmitted={() => {
+            // Optionally reload item to update report count
+            console.log('Report submitted for item:', item.id);
+          }}
+        />
+      )}
     </MobileLayout>
   );
 };

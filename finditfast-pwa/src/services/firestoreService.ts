@@ -327,17 +327,26 @@ export const ReportService = {
   },
   getByStoreOwner: async (ownerId: string) => {
     try {
-      // Get all approved stores for this owner
-      // Try multiple fields since owner identification varies
+      console.log('🔍 Fetching reports for owner:', ownerId);
+      
+      // Get all stores owned by this user from BOTH collections
       const storeQueries = [
-        // Try with ownerId field (direct owner ID)
+        // From stores collection (active stores)
+        FirestoreService.getCollection<Store>('stores', [
+          where('ownerId', '==', ownerId)
+        ]),
+        // From storeRequests collection (approved stores) - using ownerId
         FirestoreService.getCollection<Store>('storeRequests', [
           where('ownerId', '==', ownerId), 
           where('status', '==', 'approved')
         ]),
-        // Try with requestedBy field (Firebase UID)
+        // From storeRequests collection (approved stores) - using requestedBy
         FirestoreService.getCollection<Store>('storeRequests', [
           where('requestedBy', '==', ownerId), 
+          where('status', '==', 'approved')
+        ]),
+        // Fallback: Get all approved stores and filter by ownerId client-side
+        FirestoreService.getCollection<Store>('storeRequests', [
           where('status', '==', 'approved')
         ])
       ];
@@ -345,17 +354,23 @@ export const ReportService = {
       // Execute all queries in parallel
       const storeResults = await Promise.all(storeQueries);
       
-      // Combine and deduplicate stores
-      const allStores = storeResults.flat();
+      // Combine and deduplicate stores - filter to only include stores owned by this user
+      const allStores = storeResults.flat().filter((store: any) => 
+        store.ownerId === ownerId || store.requestedBy === ownerId
+      );
       const uniqueStores = allStores.filter((store, index, arr) => 
         arr.findIndex(s => s.id === store.id) === index
       );
       
+      console.log(`📦 Found ${uniqueStores.length} stores for owner`);
+      
       if (uniqueStores.length === 0) {
+        console.log('⚠️ No stores found for owner');
         return [];
       }
       
       const storeIds = uniqueStores.map(store => store.id);
+      console.log('🏪 Store IDs:', storeIds);
       
       // Get reports for all stores - handle both exact and prefixed store IDs
       const allReports: Report[] = [];
@@ -367,6 +382,8 @@ export const ReportService = {
           orderBy('timestamp', 'desc')
         ]);
         
+        console.log(`📊 Found ${reports.length} reports for store ${storeId}`);
+        
         // If no reports found, try with prefixes
         if (reports.length === 0) {
           const prefixedIds = [`temp_${storeId}`, `virtual_${storeId}`];
@@ -377,6 +394,8 @@ export const ReportService = {
               orderBy('timestamp', 'desc')
             ]);
             
+            console.log(`📊 Found ${prefixedReports.length} reports for prefixed store ${prefixedId}`);
+            
             if (prefixedReports.length > 0) {
               reports = prefixedReports;
               break;
@@ -386,6 +405,8 @@ export const ReportService = {
         
         allReports.push(...reports);
       }
+      
+      console.log(`✅ Total reports found: ${allReports.length}`);
       
       // Sort all reports by timestamp
       const sortedReports = allReports.sort((a, b) => {

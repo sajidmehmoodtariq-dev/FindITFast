@@ -88,7 +88,7 @@ export interface Report {
   itemId: string;
   storeId: string;
   userId?: string;
-  type: 'missing' | 'moved' | 'found' | 'confirm';
+  type: 'missing' | 'moved' | 'found' | 'confirm' | 'not_found' | 'out_of_stock' | 'price_incorrect';
   timestamp: Timestamp;
   status?: 'pending' | 'resolved' | 'dismissed';
   location?: {
@@ -103,6 +103,9 @@ export interface Report {
     locationImageBase64?: string; // New base64 storage
     comments?: string;
     reportType?: string;
+    correctPrice?: string; // For price incorrect reports
+  };
+}
   };
 }
 
