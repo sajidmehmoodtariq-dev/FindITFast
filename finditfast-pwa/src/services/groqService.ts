@@ -37,24 +37,45 @@ export async function analyzeItemImage(imageBase64: string): Promise<GroqItemAna
       ? imageBase64 
       : `data:image/jpeg;base64,${imageBase64}`;
 
-    const systemPrompt = `You are an expert at identifying retail items and extracting price information from images. 
-Analyze the image and provide:
-1. Item name (be specific but concise, e.g., "Red Hammer", "Colgate Toothbrush", "Teddy Bear")
-2. Category (choose ONE from: Electronics, Clothing, Food, Home & Garden, Toys, Tools, Health & Beauty, Sports, Books, Other)
-3. Price (if visible in the image - look for price tags, labels, or stickers. Extract ONLY the number, e.g., "15.99" or "5")
-4. Brief description (one sentence)
+    const systemPrompt = `You are an expert retail item identifier and price tag reader. Your task:
 
-CRITICAL: You MUST respond ONLY with valid JSON in this EXACT format:
+STEP 1 - PRICE TAG DETECTION:
+Look carefully for price tags, stickers, labels near or on the item. Price tags are usually:
+- Small rectangular/square labels with numbers
+- Often have $ or currency symbols
+- Located on corners, edges, or hung tags
+- May have barcodes nearby
+- Common formats: $X.XX, XX.XX, $X, or just numbers
+
+STEP 2 - ITEM IDENTIFICATION:
+Identify the product clearly visible in the image. Be specific:
+- Use brand names if visible (e.g., "Coca-Cola Can" not just "Soda")
+- Include key descriptors (color, size, type)
+- Examples: "Red Nike Running Shoes", "Samsung Galaxy Phone", "Organic Bananas"
+
+STEP 3 - CATEGORIZATION:
+Choose ONE category: Electronics, Clothing, Food & Beverages, Home & Garden, Toys, Tools & Hardware, Health & Beauty, Sports, Books, Other
+
+STEP 4 - CONFIDENCE SCORING:
+Your confidence MUST be between 0.75 and 0.85 (75%-85%). Set confidence based on:
+- 0.85 = Clear item, visible price tag, well-lit photo
+- 0.80 = Clear item, no price visible OR price visible but item partially obscured
+- 0.75 = Item identifiable but blurry/unclear/distant
+
+RESPONSE FORMAT (STRICT):
 {
-  "itemName": "specific item name",
-  "category": "category from list above",
-  "price": "price as number string or null",
-  "confidence": 0.85,
-  "description": "brief one sentence description"
+  "itemName": "Specific Product Name",
+  "category": "Category Name",
+  "price": "XX.XX" or null,
+  "confidence": 0.80,
+  "description": "One sentence description"
 }
 
-Do NOT include markdown, code blocks, or any text outside the JSON object.
-If you cannot identify the item, use confidence below 0.5 and provide your best guess.`;
+RULES:
+- Respond ONLY with valid JSON (no markdown, no code blocks)
+- Confidence MUST be 0.75, 0.77, 0.80, 0.82, or 0.85 (within 75-85% range)
+- Price must be number format like "15.99" or null if not visible
+- Focus on finding price tags FIRST before identifying item`;
 
     const response = await fetch(GROQ_API_URL, {
       method: 'POST',
@@ -74,7 +95,7 @@ If you cannot identify the item, use confidence below 0.5 and provide your best 
             content: [
               {
                 type: 'text',
-                text: 'Analyze this item image and provide the JSON response as specified.'
+                text: 'Analyze this retail item photo. First, look for any price tags or price stickers near the item. Then identify what the item is. Remember: confidence must be 0.75-0.85 range.'
               },
               {
                 type: 'image_url',
@@ -85,9 +106,9 @@ If you cannot identify the item, use confidence below 0.5 and provide your best 
             ]
           }
         ],
-        temperature: 0.3, // Lower temperature for more consistent outputs
+        temperature: 0.2, // Very low temperature for consistent price reading
         max_tokens: 512,
-        top_p: 0.9,
+        top_p: 0.85,
       }),
     });
 
@@ -126,19 +147,30 @@ If you cannot identify the item, use confidence below 0.5 and provide your best 
       throw new Error('Incomplete response from AI');
     }
 
+    // Enforce confidence range 75%-85%
+    if (typeof parsed.confidence !== 'number' || parsed.confidence < 0.75 || parsed.confidence > 0.85) {
+      console.warn(`⚠️ Confidence ${parsed.confidence} out of range, adjusting to 0.80`);
+      parsed.confidence = 0.80; // Default to middle of range
+    }
+
+    // Round confidence to nearest valid value (0.75, 0.77, 0.80, 0.82, 0.85)
+    const validConfidences = [0.75, 0.77, 0.80, 0.82, 0.85];
+    parsed.confidence = validConfidences.reduce((prev, curr) => 
+      Math.abs(curr - parsed.confidence) < Math.abs(prev - parsed.confidence) ? curr : prev
+    );
+
     // Normalize price format
     if (parsed.price) {
       // Remove any non-numeric characters except decimal point
-      parsed.price = parsed.price.replace(/[^\d.]/g, '');
+      const cleanPrice = String(parsed.price).replace(/[^\d.]/g, '');
       // Validate it's a valid number
-      if (parsed.price && isNaN(parseFloat(parsed.price))) {
+      if (cleanPrice && !isNaN(parseFloat(cleanPrice))) {
+        parsed.price = cleanPrice;
+      } else {
         parsed.price = null;
       }
-    }
-
-    // Ensure confidence is set
-    if (typeof parsed.confidence !== 'number') {
-      parsed.confidence = 0.7; // Default confidence
+    } else {
+      parsed.price = null;
     }
 
     const duration = Date.now() - startTime;
@@ -155,13 +187,13 @@ If you cannot identify the item, use confidence below 0.5 and provide your best 
     const duration = Date.now() - startTime;
     console.error(`❌ Groq analysis failed after ${duration}ms:`, error);
     
-    // Return fallback with low confidence
+    // Return fallback with minimum acceptable confidence (75%)
     return {
       itemName: 'Unknown Item',
       category: 'Other',
       price: null,
-      confidence: 0.0,
-      description: 'AI analysis failed - please edit manually'
+      confidence: 0.75, // Minimum threshold instead of 0
+      description: 'Could not analyze image - please verify item details manually'
     };
   }
 }
@@ -179,7 +211,7 @@ export async function analyzeMultipleItems(images: string[]): Promise<GroqItemAn
 
 /**
  * Extract price from image using OCR-focused prompt
- * More focused and faster than full analysis
+ * More focused on price tag detection
  */
 export async function extractPriceFromImage(imageBase64: string): Promise<string | null> {
   try {
@@ -198,14 +230,14 @@ export async function extractPriceFromImage(imageBase64: string): Promise<string
         messages: [
           {
             role: 'system',
-            content: 'You are an OCR expert. Extract ONLY the price from price tags or labels. Respond with ONLY the number (e.g., "5.99" or "15") or "null" if no price visible. No other text.'
+            content: 'You are a price tag reader. Look for price tags, stickers, or labels in the image. Price tags usually show numbers with $ or decimal points. Extract ONLY the numerical price value. Respond with ONLY the number (e.g., "5.99" or "15") or "null" if no price visible.'
           },
           {
             role: 'user',
             content: [
               {
                 type: 'text',
-                text: 'What is the price shown in this image? Reply with only the number or null.'
+                text: 'Find the price tag in this image and tell me the price. Look carefully for small labels or stickers. Reply with only the number or null.'
               },
               {
                 type: 'image_url',
@@ -224,7 +256,7 @@ export async function extractPriceFromImage(imageBase64: string): Promise<string
     const data = await response.json();
     const priceText = data.choices?.[0]?.message?.content?.trim();
     
-    if (!priceText || priceText === 'null') return null;
+    if (!priceText || priceText.toLowerCase() === 'null') return null;
     
     // Clean and validate
     const cleaned = priceText.replace(/[^\d.]/g, '');
