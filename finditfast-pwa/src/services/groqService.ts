@@ -31,6 +31,12 @@ export async function analyzeItemImage(imageBase64: string): Promise<GroqItemAna
   
   try {
     console.log('🤖 Starting Groq AI analysis...');
+    console.log('🔑 API Key present:', !!GROQ_API_KEY);
+    console.log('📏 Image size:', imageBase64.length, 'characters');
+    
+    if (!GROQ_API_KEY) {
+      throw new Error('GROQ_API_KEY not configured. Please set VITE_GROQ_API_KEY in .env.local');
+    }
     
     // Ensure base64 has proper data URL prefix
     const imageDataUrl = imageBase64.startsWith('data:') 
@@ -112,10 +118,12 @@ RULES:
       }),
     });
 
+    console.log('📡 Groq API Response Status:', response.status, response.statusText);
+
     if (!response.ok) {
       const errorText = await response.text();
-      console.error('❌ Groq API error:', response.status, errorText);
-      throw new Error(`Groq API request failed: ${response.status}`);
+      console.error('❌ Groq API error response:', errorText);
+      throw new Error(`Groq API request failed: ${response.status} - ${errorText}`);
     }
 
     const data = await response.json();
@@ -186,14 +194,21 @@ RULES:
   } catch (error) {
     const duration = Date.now() - startTime;
     console.error(`❌ Groq analysis failed after ${duration}ms:`, error);
+    console.error('Error type:', error instanceof Error ? error.constructor.name : typeof error);
+    console.error('Error message:', error instanceof Error ? error.message : String(error));
+    
+    // Check if it's an API key issue
+    if (!GROQ_API_KEY) {
+      console.error('🔑 MISSING API KEY! Set VITE_GROQ_API_KEY in your .env.local file');
+    }
     
     // Return fallback with minimum acceptable confidence (75%)
     return {
-      itemName: 'Unknown Item',
+      itemName: 'AI Analysis Failed',
       category: 'Other',
       price: null,
-      confidence: 0.75, // Minimum threshold instead of 0
-      description: 'Could not analyze image - please verify item details manually'
+      confidence: 0.75,
+      description: `Error: ${error instanceof Error ? error.message : 'Unknown error'} - Please edit item details manually`
     };
   }
 }
