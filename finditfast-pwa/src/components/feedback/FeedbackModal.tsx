@@ -130,7 +130,7 @@ export const FeedbackModal: React.FC<FeedbackModalProps> = ({
                   <p className="font-medium text-gray-900 truncate">{item.name}</p>
                   <p className="text-sm text-gray-600 truncate">{store.name}</p>
                   {item.price && (
-                    <p className="text-sm font-medium text-green-600">${item.price.toFixed(2)}</p>
+                    <p className="text-sm font-medium text-green-600">${parseFloat(item.price).toFixed(2)}</p>
                   )}
                 </div>
               </div>

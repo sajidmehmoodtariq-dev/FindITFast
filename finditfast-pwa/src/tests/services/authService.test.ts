@@ -117,7 +117,6 @@ describe('AuthService', () => {
 
       const registrationData: OwnerRegistrationData = {
         name: 'John Doe',
-        storeName: 'Test Store',
         email: 'test@example.com',
         phone: '1234567890',
       };
@@ -133,7 +132,6 @@ describe('AuthService', () => {
         name: 'John Doe',
         email: 'test@example.com',
         phone: '1234567890',
-        storeName: 'Test Store',
         storeId: '',
         createdAt: expect.any(Date),
       });
@@ -147,7 +145,6 @@ describe('AuthService', () => {
 
       const registrationData: OwnerRegistrationData = {
         name: 'John Doe',
-        storeName: 'Test Store',
         email: 'test@example.com',
         phone: '1234567890',
       };

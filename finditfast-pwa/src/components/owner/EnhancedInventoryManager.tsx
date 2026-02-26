@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 import { collection, query, where, getDocs, doc, updateDoc } from 'firebase/firestore';
 import { db } from '../../services/firebase';
-import { StorePlanService, ItemService } from '../../services/firestoreService';
+import { ItemService } from '../../services/firestoreService';
 import { StoreCard } from './StoreCard';
 import { InventoryModal } from './InventoryModal';
 import { FullScreenInventory } from './FullScreenInventory';

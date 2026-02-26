@@ -136,7 +136,7 @@ export const stockConfirmationService = {
             label = 'Stock Uncertain';
         } else {
             color = '⚪';
-            label = 'Not Recently Verified';
+            label = 'Not Recently Confirmed';
         }
 
         const weeklyTotal = (item.weeklyGreenCount || 0) + (item.weeklyYellowCount || 0);

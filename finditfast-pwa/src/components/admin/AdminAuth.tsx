@@ -16,7 +16,7 @@ export const AdminAuth: React.FC = () => {
     setError(null);
 
     try {
-      const userCredential = await signInWithEmailAndPassword(auth, email, password);
+      await signInWithEmailAndPassword(auth, email, password);
       
       // Check if this is actually an admin (you could check against admins collection)
       if (email === 'admin@finditfast.com') {

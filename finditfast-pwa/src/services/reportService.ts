@@ -164,16 +164,8 @@ export class ReportServiceClass {
       // For now, we'll log this action and could extend the Item interface later
       console.log(`Item ${itemId} flagged for admin review: ${reason}`);
       
-      // You could also create a separate 'flagged_items' collection for admin dashboard
-      const flagData = {
-        itemId,
-        reason,
-        timestamp: Timestamp.now(),
-        status: 'pending_review'
-      };
-      
       // This would be implemented when admin functionality is added
-      // await FirestoreService.addDocument('flagged_items', flagData);
+      // await FirestoreService.addDocument('flagged_items', { itemId, reason, timestamp: Timestamp.now(), status: 'pending_review' });
     } catch (error) {
       console.error('Error flagging item for review:', error);
       throw new Error('Failed to flag item for review.');

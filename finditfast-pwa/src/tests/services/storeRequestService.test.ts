@@ -31,6 +31,7 @@ describe('StoreRequestService', () => {
       const validData: CreateStoreRequestData = {
         storeName: 'Test Store',
         address: '123 Main St, City, State',
+        requestedBy: 'user123',
         location: {
           latitude: 40.7128,
           longitude: -74.0060,
@@ -46,6 +47,7 @@ describe('StoreRequestService', () => {
       const invalidData: CreateStoreRequestData = {
         storeName: '',
         address: '123 Main St, City, State',
+        requestedBy: 'user123',
       };
 
       const errors = StoreRequestService.validateStoreRequestData(invalidData);
@@ -56,6 +58,7 @@ describe('StoreRequestService', () => {
       const invalidData: CreateStoreRequestData = {
         storeName: 'A',
         address: '123 Main St, City, State',
+        requestedBy: 'user123',
       };
 
       const errors = StoreRequestService.validateStoreRequestData(invalidData);
@@ -66,6 +69,7 @@ describe('StoreRequestService', () => {
       const invalidData: CreateStoreRequestData = {
         storeName: 'Test Store',
         address: '',
+        requestedBy: 'user123',
       };
 
       const errors = StoreRequestService.validateStoreRequestData(invalidData);
@@ -76,6 +80,7 @@ describe('StoreRequestService', () => {
       const invalidData: CreateStoreRequestData = {
         storeName: 'Test Store',
         address: '123',
+        requestedBy: 'user123',
       };
 
       const errors = StoreRequestService.validateStoreRequestData(invalidData);
@@ -86,6 +91,7 @@ describe('StoreRequestService', () => {
       const invalidData: CreateStoreRequestData = {
         storeName: 'Test Store',
         address: '123 Main St, City, State',
+        requestedBy: 'user123',
         location: {
           latitude: 'invalid' as any,
           longitude: -74.0060,
@@ -100,6 +106,7 @@ describe('StoreRequestService', () => {
       const invalidData: CreateStoreRequestData = {
         storeName: '',
         address: '',
+        requestedBy: 'user123',
       };
 
       const errors = StoreRequestService.validateStoreRequestData(invalidData);
@@ -112,6 +119,7 @@ describe('StoreRequestService', () => {
       const invalidData: CreateStoreRequestData = {
         storeName: '   ',
         address: '   ',
+        requestedBy: 'user123',
       };
 
       const errors = StoreRequestService.validateStoreRequestData(invalidData);
@@ -123,16 +131,7 @@ describe('StoreRequestService', () => {
       const validData: CreateStoreRequestData = {
         storeName: 'Test Store',
         address: '123 Main St, City, State',
-      };
-
-      const errors = StoreRequestService.validateStoreRequestData(validData);
-      expect(errors).toEqual([]);
-    });
-
-    it('should accept data without notes', () => {
-      const validData: CreateStoreRequestData = {
-        storeName: 'Test Store',
-        address: '123 Main St, City, State',
+        requestedBy: 'user123',
       };
 
       const errors = StoreRequestService.validateStoreRequestData(validData);
@@ -163,6 +162,7 @@ describe('StoreRequestService', () => {
       const requestData: CreateStoreRequestData = {
         storeName: 'Test Store',
         address: '123 Main St, City, State',
+        requestedBy: 'user123',
       };
 
       await expect(StoreRequestService.createStoreRequest(requestData))

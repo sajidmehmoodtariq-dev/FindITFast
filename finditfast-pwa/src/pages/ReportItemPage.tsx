@@ -13,12 +13,11 @@ interface CameraState {
 }
 
 export const ReportItemPage: React.FC = () => {
-  const { itemId, storeId } = useParams<{ itemId: string; storeId: string }>();
+  const { itemId } = useParams<{ itemId: string; storeId: string }>();
   const navigate = useNavigate();
   
   const [item, setItem] = useState<Item | null>(null);
   const [loading, setLoading] = useState(true);
-  const [submitting, setSubmitting] = useState(false);
   const [updatingLocation, setUpdatingLocation] = useState(false);
   const [processingImage, setProcessingImage] = useState(false);
   const [imageUploadSuccess, setImageUploadSuccess] = useState(false);
@@ -42,7 +41,6 @@ export const ReportItemPage: React.FC = () => {
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const itemFileInputRef = useRef<HTMLInputElement>(null);
-  const locationFileInputRef = useRef<HTMLInputElement>(null);
   
   const [currentCapture, setCurrentCapture] = useState<'item' | 'location' | null>(null);
 

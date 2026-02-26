@@ -161,7 +161,7 @@ export const ItemLocationViewer: React.FC<ItemLocationViewerProps> = ({
               <p className="text-sm text-gray-600 mb-2">{searchResult.store.name}</p>
               
               {searchResult.price && (
-                <p className="text-lg font-semibold text-green-600">${searchResult.price.toFixed(2)}</p>
+                <p className="text-lg font-semibold text-green-600">${parseFloat(searchResult.price).toFixed(2)}</p>
               )}
               
               {searchResult.distance && (

@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { ItemVerificationService } from '../../services/itemVerificationService';
 import { ItemService } from '../../services/firestoreService';
 import type { Item } from '../../types';
@@ -22,12 +22,17 @@ const mockItem: Item = {
   storeId: 'test-store-id',
   imageUrl: 'https://example.com/item.jpg',
   position: { x: 25, y: 30 },
-  price: 4.99,
+  price: '4.99',
   verified: true,
   verifiedAt: new Date('2024-01-01') as any,
   createdAt: new Date('2024-01-01') as any,
   updatedAt: new Date('2024-01-01') as any,
   reportCount: 0,
+  lastConfirmedAt: null,
+  weeklyGreenCount: 0,
+  weeklyYellowCount: 0,
+  recentRedCount24h: 0,
+  statusOverride: null,
 };
 
 describe('ItemVerificationService', () => {
@@ -72,6 +77,11 @@ describe('ItemVerificationService', () => {
         imageUrl: 'https://example.com/new-item.jpg',
         position: { x: 50, y: 60 },
         reportCount: 0,
+        lastConfirmedAt: null,
+        weeklyGreenCount: 0,
+        weeklyYellowCount: 0,
+        recentRedCount24h: 0,
+        statusOverride: null,
       };
 
       mockItemService.create.mockResolvedValue('new-item-id');

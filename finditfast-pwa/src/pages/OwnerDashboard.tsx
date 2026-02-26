@@ -8,7 +8,7 @@ import { collection, query, where, getDocs, onSnapshot, addDoc, serverTimestamp,
 import { db } from '../services/firebase';
 import { fixOwnerProfile } from '../utils/debugOwnerProfile';
 import { GeocodingService } from '../services/geocodingService';
-import type { Store, Item } from '../types';
+import type { Store } from '../types';
 
 export const OwnerDashboard: React.FC = () => {
   const { user, ownerProfile, signOut, refreshOwnerProfile } = useAuth();
@@ -20,7 +20,7 @@ export const OwnerDashboard: React.FC = () => {
   const queryParams = new URLSearchParams(location.search);
   const tabFromUrl = queryParams.get('tab');
   const [activeTab, setActiveTab] = useState(tabFromUrl || 'overview');
-  const [store, setStore] = useState<Store | null>(null);
+  const [_store, _setStore] = useState<Store | null>(null);
   // const [items, setItems] = useState<Item[]>([]);
   const [loading, setLoading] = useState(true);
   const [uploadSuccess, setUploadSuccess] = useState<string | null>(null);
@@ -44,7 +44,7 @@ export const OwnerDashboard: React.FC = () => {
   });
   const [isSubmittingRequest, setIsSubmittingRequest] = useState(false);
   const [allOwnerStores, setAllOwnerStores] = useState<any[]>([]);
-  const [storesLoading, setStoresLoading] = useState(false);
+  const [_storesLoading, setStoresLoading] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState<{ storeId: string; storeName: string } | null>(null);
   // const [editingStore, setEditingStore] = useState<any | null>(null);
 
@@ -111,7 +111,7 @@ export const OwnerDashboard: React.FC = () => {
     const loadStoreData = async () => {
       if (ownerProfile?.storeId) {
         try {
-          const [storeData, storeItems] = await Promise.all([
+          const [storeData] = await Promise.all([
             StoreService.getById(ownerProfile.storeId),
             ItemService.getByStore(ownerProfile.storeId)
           ]);
@@ -1157,10 +1157,11 @@ export const OwnerDashboard: React.FC = () => {
               <div className="mb-6">
                 <h2 className="text-2xl font-bold text-gray-900 mb-2">User Reports</h2>
                 <p className="text-gray-600">View and manage reports from users about items in your store</p>
-                {console.log('👤 Owner Profile:', ownerProfile)}
-                {console.log('🆔 Owner ID:', ownerProfile.id)}
-                {console.log('👥 User UID:', user?.uid)}
-                {console.log('🔑 Firebase UID in profile:', ownerProfile.firebaseUid)}
+                {/* Debug logs */}
+                {void console.log('👤 Owner Profile:', ownerProfile)}
+                {void console.log('🆔 Owner ID:', ownerProfile.id)}
+                {void console.log('👥 User UID:', user?.uid)}
+                {void console.log('🔑 Firebase UID in profile:', ownerProfile.firebaseUid)}
               </div>
               {/* Use firebaseUid first (what stores actually use), fall back to profile.id, then user.uid */}
               {ownerProfile.firebaseUid ? (

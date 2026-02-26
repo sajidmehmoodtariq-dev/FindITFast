@@ -38,9 +38,10 @@ export const ItemInfo: React.FC<ItemInfoProps> = ({ item, store, className = '' 
     return diffDays;
   };
 
-  const formatPrice = (price?: number): string => {
+  const formatPrice = (price?: string): string => {
     if (!price) return '';
-    return `$${price.toFixed(2)}`;
+    const num = parseFloat(price);
+    return isNaN(num) ? `$${price}` : `$${num.toFixed(2)}`;
   };
 
   const daysSinceVerification = getDaysSinceVerification(item.verifiedAt);

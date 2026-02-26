@@ -315,7 +315,7 @@ describe('ReportService', () => {
     });
 
     it('returns undefined when geolocation fails', async () => {
-      mockGeolocation.getCurrentPosition.mockImplementation((success, error) => {
+      mockGeolocation.getCurrentPosition.mockImplementation((_success, error) => {
         error(new Error('Location denied'));
       });
 

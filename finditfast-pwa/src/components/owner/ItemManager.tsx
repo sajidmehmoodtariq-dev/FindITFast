@@ -218,6 +218,11 @@ export const ItemManager: React.FC<ItemManagerProps> = ({
         position: selectedPosition,
         price: formData.price?.toString(),
         reportCount: 0,
+        lastConfirmedAt: null,
+        weeklyGreenCount: 0,
+        weeklyYellowCount: 0,
+        recentRedCount24h: 0,
+        statusOverride: null,
       };
 
       // Save to Firestore with automatic verification

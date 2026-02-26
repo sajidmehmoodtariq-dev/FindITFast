@@ -74,6 +74,11 @@ class OptimizedSearchService {
             position: item.position,
             createdAt: item.createdAt,
             updatedAt: item.updatedAt,
+            lastConfirmedAt: item.lastConfirmedAt ?? null,
+            weeklyGreenCount: item.weeklyGreenCount ?? 0,
+            weeklyYellowCount: item.weeklyYellowCount ?? 0,
+            recentRedCount24h: item.recentRedCount24h ?? 0,
+            statusOverride: item.statusOverride ?? null,
             distance,
             store
           });

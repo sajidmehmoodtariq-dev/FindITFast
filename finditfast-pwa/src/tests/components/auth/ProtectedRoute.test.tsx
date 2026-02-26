@@ -23,7 +23,7 @@ describe('ProtectedRoute', () => {
   const mockUser = {
     uid: 'test-uid',
     email: 'test@example.com',
-  };
+  } as any;
 
   const mockOwnerProfile = {
     id: 'owner-1',
@@ -32,6 +32,7 @@ describe('ProtectedRoute', () => {
     phone: '1234567890',
     storeName: 'Test Store',
     storeId: 'store-1',
+    firebaseUid: 'test-uid',
     createdAt: new Date() as any,
   };
 

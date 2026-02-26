@@ -2,8 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { auth, db } from '../services/firebase';
-import { collection, query, where, getDocs, onSnapshot, doc, updateDoc, setDoc, getDoc, deleteDoc } from 'firebase/firestore';
-import { EmailAuthProvider, reauthenticateWithCredential, updateEmail, updatePassword, sendEmailVerification, verifyBeforeUpdateEmail } from 'firebase/auth';
+import { collection, query, where, getDocs, onSnapshot, doc, updateDoc, setDoc, deleteDoc } from 'firebase/firestore';
+import { EmailAuthProvider, reauthenticateWithCredential, updatePassword, verifyBeforeUpdateEmail } from 'firebase/auth';
 
 export const AdminDashboard: React.FC = () => {
   const { user } = useAuth();
@@ -18,7 +18,7 @@ export const AdminDashboard: React.FC = () => {
   });
   const [loading, setLoading] = useState(true);
   const [storeOwners, setStoreOwners] = useState<any[]>([]);
-  const [storeRequests, setStoreRequests] = useState<any[]>([]);
+  const [, setStoreRequests] = useState<any[]>([]);
   const [pendingRequests, setPendingRequests] = useState<any[]>([]);
   const [recentActions, setRecentActions] = useState<any[]>([]);
   const [ownersLoading, setOwnersLoading] = useState(false);
@@ -477,7 +477,7 @@ export const AdminDashboard: React.FC = () => {
       console.log(`� [ADMIN STORES DEBUG] Found ${requestsSnapshot.size} total store requests in 'storeRequests' collection`);
       
       // Map all requests with proper date conversion (same as loadStoreOwners)
-      const allRequestsData = requestsSnapshot.docs.map(doc => {
+      const allRequestsData: any[] = requestsSnapshot.docs.map(doc => {
         const data = doc.data();
         return {
           id: doc.id,
@@ -528,7 +528,6 @@ export const AdminDashboard: React.FC = () => {
         });
         
         return {
-          id: request.id,
           ...request,
           // Map store request fields to consistent store fields
           name: request.storeName,

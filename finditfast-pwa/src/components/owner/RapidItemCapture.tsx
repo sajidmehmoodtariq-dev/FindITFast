@@ -55,10 +55,8 @@ export const RapidItemCapture: React.FC<RapidItemCaptureProps> = ({
   const [error, setError] = useState<string | null>(null);
   
   // Image position for zoom/pan
-  const [zoomLevel, setZoomLevel] = useState(1);
-  const [imagePosition, setImagePosition] = useState({ x: 0, y: 0 });
-  const [isDragging, setIsDragging] = useState(false);
-  const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
+  const [zoomLevel] = useState(1);
+  const [imagePosition] = useState({ x: 0, y: 0 });
   const [blinkPosition, setBlinkPosition] = useState<{ x: number; y: number } | null>(null);
   
   const fileInputRef = useRef<HTMLInputElement>(null);

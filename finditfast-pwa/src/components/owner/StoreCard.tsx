@@ -19,7 +19,6 @@ interface StoreCardProps {
 
 export const StoreCard: React.FC<StoreCardProps> = ({
   storeData,
-  onOpenInventory,
   onManageItems,
   onSetActivePlan
 }) => {

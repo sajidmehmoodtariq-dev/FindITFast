@@ -21,10 +21,6 @@ vi.mock('../../services/firebase', () => ({
 }));
 
 describe('StorageService', () => {
-  const mockFile = new File(['test'], 'test.jpg', { type: 'image/jpeg' });
-  const mockPath = 'test/path.jpg';
-  const mockDownloadURL = 'https://example.com/test.jpg';
-
   beforeEach(() => {
     vi.clearAllMocks();
   });
@@ -71,9 +67,6 @@ describe('StorageService', () => {
 });
 
 describe('FloorplanService', () => {
-  const mockFile = new File(['floorplan'], 'floorplan.jpg', { type: 'image/jpeg' });
-  const storeId = 'store123';
-
   beforeEach(() => {
     vi.clearAllMocks();
   });
@@ -100,10 +93,6 @@ describe('FloorplanService', () => {
 });
 
 describe('ItemImageService', () => {
-  const mockFile = new File(['item'], 'item.jpg', { type: 'image/jpeg' });
-  const storeId = 'store123';
-  const itemId = 'item456';
-
   beforeEach(() => {
     vi.clearAllMocks();
   });

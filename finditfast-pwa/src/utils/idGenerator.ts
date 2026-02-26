@@ -59,7 +59,7 @@ export const isValidStoreId = (id: string): boolean => {
 /**
  * Check if an ID is already taken (you'll need to implement this with your database)
  */
-export const isIdAvailable = async (id: string, collection: string): Promise<boolean> => {
+export const isIdAvailable = async (_id: string, _collection: string): Promise<boolean> => {
   // This will be implemented with Firestore checks
   // For now, return true
   return true;

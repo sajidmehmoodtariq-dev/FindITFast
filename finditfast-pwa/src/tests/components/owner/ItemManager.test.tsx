@@ -1,9 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import { ItemManager } from '../../../components/owner/ItemManager';
-import { ItemService } from '../../../services/firestoreService';
-import { ItemStorageService } from '../../../services/storageService';
-import * as imageUtils from '../../../utilities/imageUtils';
 
 // Mock services
 vi.mock('../../../services/firestoreService', () => ({

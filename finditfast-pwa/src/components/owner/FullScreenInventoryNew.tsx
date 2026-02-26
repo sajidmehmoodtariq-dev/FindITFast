@@ -24,7 +24,7 @@ type AddItemStep = 'items-list' | 'select-location' | 'item-form';
 
 export const FullScreenInventory: React.FC<FullScreenInventoryProps> = ({ store, onClose }) => {
   const [items, setItems] = useState<Item[]>([]);
-  const [storePlans, setStorePlans] = useState<StorePlan[]>([]);
+  const [, setStorePlans] = useState<StorePlan[]>([]);
   const [activeStorePlan, setActiveStorePlan] = useState<StorePlan | null>(null);
   const [loading, setLoading] = useState(true);
   const [currentStep, setCurrentStep] = useState<AddItemStep>('items-list');
@@ -158,7 +158,7 @@ export const FullScreenInventory: React.FC<FullScreenInventoryProps> = ({ store,
     }
   };
 
-  const handleImageUpload = async (file: File, type: 'item' | 'price') => {
+  const handleImageUpload = async (file: File, _type: 'item' | 'price') => {
     try {
       console.log('🖼️ [DEBUG] handleImageUpload called with file:', file.name, 'size:', file.size);
       

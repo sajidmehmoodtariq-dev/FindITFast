@@ -90,8 +90,8 @@ export const InventoryModal: React.FC<InventoryModalProps> = ({
       // Convert to pins
       const pins: ItemPin[] = itemsData.map(item => ({
         id: item.id,
-        x: item.position.x,
-        y: item.position.y,
+        x: item.position?.x ?? 0,
+        y: item.position?.y ?? 0,
         item
       }));
 

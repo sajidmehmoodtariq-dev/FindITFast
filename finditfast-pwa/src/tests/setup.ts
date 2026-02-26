@@ -16,14 +16,14 @@ global.URL = global.URL || {
 // Mock FileReader
 global.FileReader = global.FileReader || class FileReader {
   result: string | ArrayBuffer | null = null;
-  onload: ((this: FileReader, ev: ProgressEvent<FileReader>) => any) | null = null;
-  onerror: ((this: FileReader, ev: ProgressEvent<FileReader>) => any) | null = null;
+  onload: ((this: FileReader, ev: ProgressEvent<EventTarget>) => any) | null = null;
+  onerror: ((this: FileReader, ev: ProgressEvent<EventTarget>) => any) | null = null;
   
-  readAsDataURL(file: Blob) {
+  readAsDataURL(_file: Blob) {
     setTimeout(() => {
       this.result = 'data:image/jpeg;base64,mock-data';
       if (this.onload) {
-        this.onload({} as ProgressEvent<FileReader>);
+        this.onload({} as ProgressEvent<EventTarget>);
       }
     }, 0);
   }
@@ -52,7 +52,7 @@ global.Image = global.Image || class Image {
   naturalWidth = 800;
   naturalHeight = 600;
   
-  set src(value: string) {
+  set src(_value: string) {
     setTimeout(() => {
       if (this.onload) this.onload();
     }, 0);

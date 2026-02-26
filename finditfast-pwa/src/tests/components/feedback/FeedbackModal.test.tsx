@@ -9,12 +9,17 @@ const mockItem: Item = {
   storeId: 'store1',
   imageUrl: 'https://example.com/item.jpg',
   position: { x: 50, y: 50 },
-  price: 9.99,
+  price: '9.99',
   verified: true,
   verifiedAt: Timestamp.now(),
   createdAt: Timestamp.now(),
   updatedAt: Timestamp.now(),
   reportCount: 0,
+  lastConfirmedAt: null,
+  weeklyGreenCount: 0,
+  weeklyYellowCount: 0,
+  recentRedCount24h: 0,
+  statusOverride: null,
 };
 
 const mockStore: Store = {

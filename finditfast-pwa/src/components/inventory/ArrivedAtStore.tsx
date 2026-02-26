@@ -10,7 +10,6 @@ interface ArrivedAtStoreProps {
 export const ArrivedAtStore: React.FC<ArrivedAtStoreProps> = ({
   searchResult,
   onArrived,
-  onDirections
 }) => {
   const [isNavigating, setIsNavigating] = useState(false);
 
@@ -70,7 +69,7 @@ export const ArrivedAtStore: React.FC<ArrivedAtStoreProps> = ({
               <div>
                 <p className="font-medium text-gray-900">{searchResult.name}</p>
                 {searchResult.price && (
-                  <p className="text-sm text-green-600">${searchResult.price.toFixed(2)}</p>
+                  <p className="text-sm text-green-600">${parseFloat(searchResult.price).toFixed(2)}</p>
                 )}
               </div>
             </div>

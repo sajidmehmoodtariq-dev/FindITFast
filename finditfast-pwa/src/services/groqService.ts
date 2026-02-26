@@ -11,13 +11,6 @@ interface GroqItemAnalysis {
   description?: string;
 }
 
-interface GroqErrorResponse {
-  error: string;
-  fallback?: GroqItemAnalysis;
-}
-
-type GroqResponse = GroqItemAnalysis | GroqErrorResponse;
-
 const GROQ_API_KEY = import.meta.env.VITE_GROQ_API_KEY;
 const GROQ_API_URL = 'https://api.groq.com/openai/v1/chat/completions';
 const MODEL = 'meta-llama/llama-4-scout-17b-16e-instruct';

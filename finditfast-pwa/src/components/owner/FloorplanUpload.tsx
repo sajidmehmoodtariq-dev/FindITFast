@@ -1,7 +1,7 @@
 import React, { useState, useRef } from 'react';
 import { validateImageFile, fileToBase64 } from '../../utilities/imageUtils';
 import { validateAndPrepareImage } from '../../utils/imageCompression';
-import { StorePlanService, StoreService, StoreOwnerService, FirestoreService } from '../../services/firestoreService';
+import { StorePlanService, StoreOwnerService } from '../../services/firestoreService';
 import { useAuth } from '../../contexts/AuthContext';
 
 interface FloorplanUploadProps {
@@ -132,7 +132,7 @@ export const FloorplanUpload: React.FC<FloorplanUploadProps> = ({
       }
 
       console.log('� Starting floorplan upload for user:', user.email, user.uid);
-      console.log('✅ Store owner profile verified:', ownerProfile.id);
+      console.log('✅ Store owner profile verified:', ownerProfile?.id);
 
       // Convert image to base64 format (with compression)
       setUploadProgress(25);
@@ -185,10 +185,11 @@ export const FloorplanUpload: React.FC<FloorplanUploadProps> = ({
         name: selectedFile.name,
         type: selectedFile.type,
         size: validation.compressionResult.compressedSize,
-        base64: base64Data,
         uploadedAt: now as any,
         originalSize: selectedFile.size,
         isActive: true, // Make this the active floorplan
+        hasImageData: true,
+        fileName: selectedFile.name,
       });
 
       setUploadProgress(100);

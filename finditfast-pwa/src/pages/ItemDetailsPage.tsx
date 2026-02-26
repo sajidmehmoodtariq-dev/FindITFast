@@ -12,7 +12,7 @@ import type { SearchResult } from '../types/search';
 export const ItemDetailsPage: React.FC = () => {
   const { itemId, storeId } = useParams<{ itemId: string; storeId: string }>();
   const navigate = useNavigate();
-  const { currentUser } = useAuth();
+  const { user } = useAuth();
 
   const [anonymousId, setAnonymousId] = useState<string>('');
 
@@ -25,7 +25,7 @@ export const ItemDetailsPage: React.FC = () => {
     setAnonymousId(devId);
   }, []);
 
-  const userId = currentUser?.uid ?? anonymousId;
+  const userId = user?.uid ?? anonymousId;
 
   const [item, setItem] = useState<SearchResult | null>(null);
   const [isLoading, setIsLoading] = useState(true);

@@ -96,7 +96,6 @@ export const StoreRequestForm: React.FC<StoreRequestFormProps> = ({
           latitude: geocodingResult.latitude,
           longitude: geocodingResult.longitude
         },
-        formattedAddress: geocodingResult.formattedAddress,
       };
 
       await StoreRequestService.createStoreRequest(requestData);

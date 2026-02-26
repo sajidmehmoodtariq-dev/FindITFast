@@ -152,9 +152,9 @@ export const InventoryManager: React.FC<InventoryManagerProps> = ({
       const itemData: Partial<Item> = {
         id: itemId,
         name: itemForm.name.trim(),
-        price: itemForm.price ? itemForm.price.replace(/[^\d.]/g, '') : null,
+        price: itemForm.price ? itemForm.price.replace(/[^\d.]/g, '') : undefined,
         imageUrl: itemImageUrl,
-        priceImageUrl,
+        priceImageUrl: priceImageUrl || undefined,
         storeId,
         floorplanId: storePlan.id,
         position: {
@@ -266,8 +266,8 @@ export const InventoryManager: React.FC<InventoryManagerProps> = ({
                   key={item.id}
                   className="absolute transform -translate-x-1/2 -translate-y-1/2 cursor-pointer group"
                   style={{
-                    left: `${item.position.x}%`,
-                    top: `${item.position.y}%`
+                    left: `${item.position?.x}%`,
+                    top: `${item.position?.y}%`
                   }}
                 >
                   <div className="w-6 h-6 bg-green-500 rounded-full border-2 border-white shadow-lg flex items-center justify-center">

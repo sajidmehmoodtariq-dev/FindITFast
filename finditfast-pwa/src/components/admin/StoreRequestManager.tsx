@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { StoreRequestService } from '../../services/storeRequestService';
 import { StoreApprovalService } from '../../services/storeApprovalService';
-import { AuthService } from '../../services/authService';
 import { DocumentViewer } from '../common/DocumentViewer';
 import type { StoreRequest } from '../../types/permissions';
 import type { Base64Document } from '../../utils/fileUtils';
