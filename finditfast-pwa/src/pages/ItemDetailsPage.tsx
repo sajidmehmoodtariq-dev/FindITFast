@@ -4,12 +4,29 @@ import { ItemService, StoreService } from '../services/firestoreService';
 import { MobileLayout, MobileContent, MobileHeader } from '../components/common/MobileLayout';
 import { LazyImage } from '../components/performance/LazyLoading';
 import { ReportProblemModal } from '../components/reports/ReportProblemModal';
+import { StockTrustBadge } from '../components/StockTrustBadge';
+import { StockConfirmationButtons } from '../components/StockConfirmationButtons';
+import { useAuth } from '../contexts/AuthContext';
 import type { SearchResult } from '../types/search';
 
 export const ItemDetailsPage: React.FC = () => {
   const { itemId, storeId } = useParams<{ itemId: string; storeId: string }>();
   const navigate = useNavigate();
-  
+  const { currentUser } = useAuth();
+
+  const [anonymousId, setAnonymousId] = useState<string>('');
+
+  useEffect(() => {
+    let devId = localStorage.getItem('deviceId');
+    if (!devId) {
+      devId = 'device_' + Math.random().toString(36).substr(2, 9);
+      localStorage.setItem('deviceId', devId);
+    }
+    setAnonymousId(devId);
+  }, []);
+
+  const userId = currentUser?.uid ?? anonymousId;
+
   const [item, setItem] = useState<SearchResult | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -59,7 +76,7 @@ export const ItemDetailsPage: React.FC = () => {
 
   const handleDirections = () => {
     if (!item?.store) return;
-    
+
     // Use coordinates for more accurate navigation
     if (item.store.location?.latitude && item.store.location?.longitude) {
       const lat = item.store.location.latitude;
@@ -90,13 +107,13 @@ export const ItemDetailsPage: React.FC = () => {
 
   const formatVerificationStatus = (verified: boolean, verifiedAt: unknown): string => {
     if (!verified || !verifiedAt) return '';
-    
+
     try {
       const verifiedDate = (verifiedAt as { toDate?: () => Date })?.toDate?.() || new Date(verifiedAt as string | number | Date);
       const now = new Date();
       const diffTime = Math.abs(now.getTime() - verifiedDate.getTime());
       const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-      
+
       if (diffDays === 1) return 'Verified 1 day ago';
       return `Verified ${diffDays} days ago`;
     } catch {
@@ -141,12 +158,12 @@ export const ItemDetailsPage: React.FC = () => {
 
   return (
     <MobileLayout>
-      <MobileHeader 
-        title="Item Details" 
-        showBack={true} 
-        onBack={() => navigate('/')} 
+      <MobileHeader
+        title="Item Details"
+        showBack={true}
+        onBack={() => navigate('/')}
       />
-      
+
       <MobileContent>
         <div className="min-h-full bg-gray-50">
           {/* Item Image */}
@@ -220,7 +237,7 @@ export const ItemDetailsPage: React.FC = () => {
                     )}
                   </div>
                 </div>
-                
+
                 {item.price && (
                   <div className="text-right">
                     <p className="text-3xl font-bold text-blue-600">
@@ -252,6 +269,12 @@ export const ItemDetailsPage: React.FC = () => {
                   </div>
                 </div>
               )}
+
+              {/* Stock Trust System */}
+              <div className="mt-4 pt-4 border-t border-gray-100">
+                <StockTrustBadge item={item} />
+                <StockConfirmationButtons item={item} userId={userId} />
+              </div>
             </div>
 
             {/* Store Information */}
@@ -276,7 +299,7 @@ export const ItemDetailsPage: React.FC = () => {
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
                   </svg>
                   <span className="text-gray-600">
-                    {item.distance < 1 
+                    {item.distance < 1
                       ? `${Math.round(item.distance * 1000)}m away`
                       : `${item.distance.toFixed(1)}km away`
                     }

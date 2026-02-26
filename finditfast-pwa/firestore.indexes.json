@@ -193,6 +193,24 @@
           "order": "DESCENDING"
         }
       ]
+    },
+    {
+      "collectionGroup": "itemStatusEvents",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "itemId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "userId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "createdAt",
+          "order": "ASCENDING"
+        }
+      ]
     }
   ],
   "fieldOverrides": []

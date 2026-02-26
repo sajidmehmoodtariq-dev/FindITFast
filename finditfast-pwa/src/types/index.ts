@@ -71,6 +71,22 @@ export interface Item {
   hasPriceImage?: boolean;
   priceImageMimeType?: string;
   priceImageSize?: number;
+
+  // Stock Trust System
+  lastConfirmedAt: Timestamp | null;
+  weeklyGreenCount: number;
+  weeklyYellowCount: number;
+  recentRedCount24h: number;
+  statusOverride: 'OUT_OF_STOCK' | null;
+}
+
+export interface ItemStatusEvent {
+  id?: string;
+  itemId: string;
+  userId: string; // Firebase uid or anonymous device id
+  type: 'GREEN' | 'YELLOW' | 'RED';
+  createdAt: Timestamp;
+  storeId: string;
 }
 
 export interface StoreOwner {
@@ -104,8 +120,6 @@ export interface Report {
     comments?: string;
     reportType?: string;
     correctPrice?: string; // For price incorrect reports
-  };
-}
   };
 }
 

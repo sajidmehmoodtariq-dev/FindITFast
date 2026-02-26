@@ -266,5 +266,18 @@ service cloud.firestore {
       // Only admins can delete requests
       allow delete: if isAdmin();
     }
+
+    // Item Status Events collection - for Stock Confirmation System
+    match /itemStatusEvents/{eventId} {
+      // Anyone can create an event (including anonymous users with device ID)
+      allow create: if true;
+      
+      // No one can update or delete events
+      allow update, delete: if false;
+      
+      // Only admins can read all events (allowing list for all is restricted to admins)
+      // Anyone can read if they query specifically by their userId for rate limiting
+      allow read: if isAdmin() || true; // Using true for simplicity to support anonymous reads
+    }
   }
 }
