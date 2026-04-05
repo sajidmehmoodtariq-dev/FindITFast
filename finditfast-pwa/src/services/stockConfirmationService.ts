@@ -15,6 +15,14 @@ export interface StockConfirmationResult {
     todayConfirmationCount: number | null;
 }
 
+export interface LiveConfirmationSummary {
+    lastConfirmedAt: Timestamp | null;
+    weeklyGreenCount: number;
+    weeklyYellowCount: number;
+    recentRedCount24h: number;
+    statusOverride: 'OUT_OF_STOCK' | null;
+}
+
 export const stockConfirmationService = {
     /**
      * Submits a user stock confirmation and updates the Item trust score fields
@@ -119,6 +127,69 @@ export const stockConfirmationService = {
     },
 
     /**
+     * Rebuilds the live trust summary from confirmation events.
+     * This keeps item details, search cards, and analytics aligned.
+     */
+    async getLiveConfirmationSummary(itemId: string, fallbackItem?: Item): Promise<LiveConfirmationSummary> {
+        try {
+            const eventsRef = collection(db, 'itemStatusEvents');
+            const eventsQuery = query(eventsRef, where('itemId', '==', itemId));
+            const snapshot = await getDocs(eventsQuery);
+
+            const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+            const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
+
+            let lastConfirmedAt: Timestamp | null = null;
+            let weeklyGreenCount = 0;
+            let weeklyYellowCount = 0;
+            let recentRedCount24h = 0;
+
+            snapshot.forEach((eventDoc) => {
+                const event = eventDoc.data() as ItemStatusEvent & { createdAt?: Timestamp };
+                const createdAt = event.createdAt;
+
+                if (createdAt && (!lastConfirmedAt || createdAt.toMillis() > lastConfirmedAt.toMillis())) {
+                    lastConfirmedAt = createdAt;
+                }
+
+                if (!createdAt) return;
+
+                const eventDate = createdAt.toDate();
+                if (eventDate >= sevenDaysAgo) {
+                    if (event.type === 'GREEN') weeklyGreenCount += 1;
+                    if (event.type === 'YELLOW') weeklyYellowCount += 1;
+                }
+
+                if (event.type === 'RED' && eventDate >= twentyFourHoursAgo) {
+                    recentRedCount24h += 1;
+                }
+            });
+
+            const statusOverride = recentRedCount24h >= 2 ? 'OUT_OF_STOCK' : null;
+
+            if (lastConfirmedAt || weeklyGreenCount > 0 || weeklyYellowCount > 0 || recentRedCount24h > 0) {
+                return {
+                    lastConfirmedAt,
+                    weeklyGreenCount,
+                    weeklyYellowCount,
+                    recentRedCount24h,
+                    statusOverride
+                };
+            }
+        } catch (error) {
+            console.warn('Unable to load live confirmation summary:', error);
+        }
+
+        return {
+            lastConfirmedAt: fallbackItem?.lastConfirmedAt ?? null,
+            weeklyGreenCount: fallbackItem?.weeklyGreenCount ?? 0,
+            weeklyYellowCount: fallbackItem?.weeklyYellowCount ?? 0,
+            recentRedCount24h: fallbackItem?.recentRedCount24h ?? 0,
+            statusOverride: fallbackItem?.statusOverride ?? null
+        };
+    },
+
+    /**
      * Computes the time-decay trust score for an item
      */
     computeTrustScore(item: Item): number {
@@ -156,12 +227,27 @@ export const stockConfirmationService = {
     /**
      * Returns UI state for the trust badge
      */
-    getBadgeState(item: Item) {
-        const score = this.computeTrustScore(item);
+    getBadgeState(item: Item, summary?: LiveConfirmationSummary) {
+        const source = summary ?? {
+            lastConfirmedAt: item.lastConfirmedAt,
+            weeklyGreenCount: item.weeklyGreenCount,
+            weeklyYellowCount: item.weeklyYellowCount,
+            recentRedCount24h: item.recentRedCount24h,
+            statusOverride: item.statusOverride
+        };
+
+        const score = this.computeTrustScore({
+            ...item,
+            lastConfirmedAt: source.lastConfirmedAt,
+            weeklyGreenCount: source.weeklyGreenCount,
+            weeklyYellowCount: source.weeklyYellowCount,
+            recentRedCount24h: source.recentRedCount24h,
+            statusOverride: source.statusOverride
+        });
         let color = '';
         let label = '';
 
-        if (item.statusOverride === 'OUT_OF_STOCK') {
+        if (source.statusOverride === 'OUT_OF_STOCK') {
             color = '🔴';
             label = 'Out of Stock';
         } else if (score >= 80) {
@@ -178,13 +264,13 @@ export const stockConfirmationService = {
             label = 'Not Recently Confirmed';
         }
 
-        const weeklyTotal = (item.weeklyGreenCount || 0) + (item.weeklyYellowCount || 0);
+        const weeklyTotal = (source.weeklyGreenCount || 0) + (source.weeklyYellowCount || 0);
 
         let sublabelA = 'No confirmations yet';
-        if (item.statusOverride === 'OUT_OF_STOCK') {
+        if (source.statusOverride === 'OUT_OF_STOCK') {
             sublabelA = 'Reported unavailable today';
-        } else if (item.lastConfirmedAt) {
-            const millisSinceConfirmation = Date.now() - item.lastConfirmedAt.toMillis();
+        } else if (source.lastConfirmedAt) {
+            const millisSinceConfirmation = Date.now() - source.lastConfirmedAt.toMillis();
             if (millisSinceConfirmation <= 120000) {
                 sublabelA = 'Just confirmed';
             } else {
@@ -194,13 +280,13 @@ export const stockConfirmationService = {
         }
 
         let sublabelB = '';
-        const hasRecentConfirmation = !!item.lastConfirmedAt && (Date.now() - item.lastConfirmedAt.toMillis()) <= 7 * 86400000;
+        const hasRecentConfirmation = !!source.lastConfirmedAt && (Date.now() - source.lastConfirmedAt.toMillis()) <= 7 * 86400000;
         if (weeklyTotal > 0 && hasRecentConfirmation) {
             sublabelB = `Confirmed by ${weeklyTotal} shopper${weeklyTotal === 1 ? '' : 's'} this week`;
         }
 
         let warning = '';
-        if ((item.recentRedCount24h || 0) === 1 && item.statusOverride !== 'OUT_OF_STOCK') {
+        if ((source.recentRedCount24h || 0) === 1 && source.statusOverride !== 'OUT_OF_STOCK') {
             warning = '1 recent out-of-stock report';
         }
 

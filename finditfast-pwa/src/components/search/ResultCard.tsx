@@ -37,22 +37,6 @@ export const ResultCard: React.FC<ResultCardProps> = ({ result, onClick }) => {
     return `$${numPrice.toFixed(2)}`;
   };
 
-  const formatVerificationStatus = (verified: boolean, verifiedAt: any): string => {
-    if (!verified) return '';
-
-    try {
-      const verifiedDate = verifiedAt?.toDate?.() || new Date(verifiedAt);
-      const now = new Date();
-      const diffTime = Math.abs(now.getTime() - verifiedDate.getTime());
-      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-
-      if (diffDays === 1) return 'Last confirmed 1 day ago';
-      return `Last confirmed ${diffDays} days ago`;
-    } catch {
-      return 'Last confirmed';
-    }
-  };
-
   return (
     <TouchArea
       variant="card"
@@ -147,15 +131,6 @@ export const ResultCard: React.FC<ResultCardProps> = ({ result, onClick }) => {
               </div>
             )}
           </div>
-
-          {/* Verification Status */}
-          {result.verified && (
-            <div className="mt-4 pt-4 border-t border-slate-100">
-              <p className="text-sm text-muted">
-                {formatVerificationStatus(result.verified, result.verifiedAt)}
-              </p>
-            </div>
-          )}
 
           {/* Stock Trust System */}
           <div className="mt-4 pt-4 border-t border-slate-100">

@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import type { Item } from '../types';
 import { stockConfirmationService } from '../services/stockConfirmationService';
 
@@ -7,7 +7,27 @@ interface StockTrustBadgeProps {
 }
 
 export const StockTrustBadge: React.FC<StockTrustBadgeProps> = ({ item }) => {
-    const { color, label, sublabelA, sublabelB, warning } = stockConfirmationService.getBadgeState(item);
+    const [summary, setSummary] = useState<Awaited<ReturnType<typeof stockConfirmationService.getLiveConfirmationSummary>> | null>(null);
+
+    useEffect(() => {
+        let active = true;
+
+        stockConfirmationService.getLiveConfirmationSummary(item.id, item)
+            .then((result) => {
+                if (active) {
+                    setSummary(result);
+                }
+            })
+            .catch((error) => {
+                console.warn('Unable to load live badge summary:', error);
+            });
+
+        return () => {
+            active = false;
+        };
+    }, [item.id, item]);
+
+    const { color, label, sublabelA, sublabelB, warning } = stockConfirmationService.getBadgeState(item, summary ?? undefined);
 
     return (
         <div className="flex flex-col gap-1 my-2">

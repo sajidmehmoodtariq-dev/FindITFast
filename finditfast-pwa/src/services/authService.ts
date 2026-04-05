@@ -1,6 +1,7 @@
 import { 
   createUserWithEmailAndPassword, 
   signInWithEmailAndPassword, 
+  sendPasswordResetEmail as firebaseSendPasswordResetEmail,
   signOut, 
   onAuthStateChanged
 } from 'firebase/auth';
@@ -27,8 +28,10 @@ export class AuthService {
    */
   static async registerOwner(data: OwnerRegistrationData, password: string): Promise<UserCredential> {
     try {
+      const normalizedEmail = data.email.trim().toLowerCase();
+
       // Create Firebase Auth user
-      const userCredential = await createUserWithEmailAndPassword(auth, data.email, password);
+      const userCredential = await createUserWithEmailAndPassword(auth, normalizedEmail, password);
       
       // Generate custom short owner ID
       const customOwnerId = await generateUniqueOwnerId();
@@ -37,7 +40,7 @@ export class AuthService {
       const ownerData: Omit<StoreOwner, 'id'> = {
         firebaseUid: userCredential.user.uid,
         name: data.name,
-        email: data.email,
+        email: normalizedEmail,
         phone: data.phone,
         storeId: '', // Will be set when store is created
         createdAt: new Date() as any,
@@ -58,9 +61,21 @@ export class AuthService {
    */
   static async signInOwner(email: string, password: string): Promise<UserCredential> {
     try {
-      return await signInWithEmailAndPassword(auth, email, password);
+      return await signInWithEmailAndPassword(auth, email.trim().toLowerCase(), password);
     } catch (error: any) {
       console.error('Error signing in owner:', error);
+      throw this.formatAuthError(error);
+    }
+  }
+
+  /**
+   * Send a password reset email.
+   */
+  static async sendResetPasswordEmail(email: string): Promise<void> {
+    try {
+      await firebaseSendPasswordResetEmail(auth, email.trim().toLowerCase());
+    } catch (error: any) {
+      console.error('Error sending reset password email:', error);
       throw this.formatAuthError(error);
     }
   }
@@ -151,7 +166,7 @@ export class AuthService {
    */
   static isValidEmail(email: string): boolean {
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    return emailRegex.test(email);
+    return emailRegex.test(email.trim().toLowerCase());
   }
 
   /**

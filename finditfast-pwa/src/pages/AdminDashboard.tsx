@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
+import { AuthService } from '../services/authService';
+import { AdminService } from '../services/adminService';
 import { auth, db } from '../services/firebase';
 import { collection, query, where, getDocs, onSnapshot, doc, updateDoc, setDoc, deleteDoc } from 'firebase/firestore';
 import { EmailAuthProvider, reauthenticateWithCredential, updatePassword, verifyBeforeUpdateEmail } from 'firebase/auth';
@@ -73,6 +75,8 @@ export const AdminDashboard: React.FC = () => {
   const [emailUpdateLoading, setEmailUpdateLoading] = useState(false);
   const [passwordUpdateLoading, setPasswordUpdateLoading] = useState(false);
   const [updateStatus, setUpdateStatus] = useState<{ type: 'email' | 'password', success: boolean, message: string } | null>(null);
+  const [isAppAdmin, setIsAppAdmin] = useState(false);
+  const [checkingAdminAccess, setCheckingAdminAccess] = useState(true);
   
   // Analytics types
   interface StoreGrowthData {
@@ -105,10 +109,19 @@ export const AdminDashboard: React.FC = () => {
     views: number;
   }
 
+  interface DailyEngagementData {
+    date: string;
+    searches: number;
+    confirmations: number;
+  }
+
   interface TimeMetrics {
     avgApprovalTime: number;
     avgResponseTime: number;
     totalSearches: number;
+    totalConfirmations: number;
+    dailySearches: number;
+    dailyConfirmations: number;
     activeUsers: number;
   }
 
@@ -118,6 +131,7 @@ export const AdminDashboard: React.FC = () => {
     storeDistribution: StoreDistributionData[];
     userActivity: UserActivityData[];
     popularStores: PopularStoreData[];
+    dailyEngagement: DailyEngagementData[];
     timeMetrics: TimeMetrics;
   }
 
@@ -128,10 +142,14 @@ export const AdminDashboard: React.FC = () => {
     storeDistribution: [],
     userActivity: [],
     popularStores: [],
+    dailyEngagement: [],
     timeMetrics: {
       avgApprovalTime: 0,
       avgResponseTime: 0,
       totalSearches: 0,
+      totalConfirmations: 0,
+      dailySearches: 0,
+      dailyConfirmations: 0,
       activeUsers: 0
     }
   });
@@ -189,6 +207,20 @@ export const AdminDashboard: React.FC = () => {
         }));
       } catch (error) {
         console.log('No search logs collection found');
+      }
+
+      // Get stock confirmation events
+      let confirmationLogs: any[] = [];
+      try {
+        const confirmationQuery = query(collection(db, 'itemStatusEvents'));
+        const confirmationSnapshot = await getDocs(confirmationQuery);
+        confirmationLogs = confirmationSnapshot.docs.map(doc => ({
+          id: doc.id,
+          ...doc.data(),
+          createdAt: doc.data().createdAt?.toDate() || new Date()
+        }));
+      } catch (error) {
+        console.log('No itemStatusEvents collection found');
       }
 
       // Get user activity logs if they exist
@@ -336,8 +368,46 @@ export const AdminDashboard: React.FC = () => {
         avgApprovalTime: Math.round(avgApprovalTime * 10) / 10,
         avgResponseTime: Math.round(avgResponseTime * 10) / 10,
         totalSearches: searchLogs.length,
+        totalConfirmations: confirmationLogs.length,
+        dailySearches: searchLogs.filter(log => {
+          const date = new Date(log.timestamp);
+          const today = new Date();
+          return date.toDateString() === today.toDateString();
+        }).length,
+        dailyConfirmations: confirmationLogs.filter(log => {
+          const date = new Date(log.createdAt);
+          const today = new Date();
+          return date.toDateString() === today.toDateString();
+        }).length,
         activeUsers: uniqueUsers.size
       };
+
+      // Build last 7 days engagement trend
+      const dailyEngagement: DailyEngagementData[] = [];
+      for (let i = 6; i >= 0; i--) {
+        const day = new Date();
+        day.setHours(0, 0, 0, 0);
+        day.setDate(day.getDate() - i);
+
+        const nextDay = new Date(day);
+        nextDay.setDate(nextDay.getDate() + 1);
+
+        const searches = searchLogs.filter(log => {
+          const timestamp = new Date(log.timestamp);
+          return timestamp >= day && timestamp < nextDay;
+        }).length;
+
+        const confirmations = confirmationLogs.filter(log => {
+          const timestamp = new Date(log.createdAt);
+          return timestamp >= day && timestamp < nextDay;
+        }).length;
+
+        dailyEngagement.push({
+          date: day.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+          searches,
+          confirmations
+        });
+      }
       
       setAnalyticsData({
         storeGrowth,
@@ -345,6 +415,7 @@ export const AdminDashboard: React.FC = () => {
         storeDistribution,
         userActivity,
         popularStores,
+        dailyEngagement,
         timeMetrics
       });
       
@@ -368,6 +439,16 @@ export const AdminDashboard: React.FC = () => {
   const handleUpdateEmail = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!user || !newEmail || !user.email) return;
+
+    const normalizedEmail = newEmail.trim().toLowerCase();
+    if (!AuthService.isValidEmail(normalizedEmail)) {
+      setUpdateStatus({
+        type: 'email',
+        success: false,
+        message: 'Please enter a valid email address.'
+      });
+      return;
+    }
     
     try {
       setEmailUpdateLoading(true);
@@ -380,7 +461,7 @@ export const AdminDashboard: React.FC = () => {
       
       // Use verifyBeforeUpdateEmail instead of updateEmail
       // This sends a verification email to the new address first
-      await verifyBeforeUpdateEmail(user, newEmail);
+      await verifyBeforeUpdateEmail(user, normalizedEmail);
       
       // Clear form and show success message
       setNewEmail('');
@@ -786,7 +867,34 @@ export const AdminDashboard: React.FC = () => {
     } finally {
       setActionLoading(null);
     }
-  };  const isAppAdmin = user?.email === 'admin@finditfast.com';
+  };
+
+  useEffect(() => {
+    let active = true;
+
+    const checkAdminAccess = async () => {
+      if (!user) {
+        if (active) {
+          setIsAppAdmin(false);
+          setCheckingAdminAccess(false);
+        }
+        return;
+      }
+
+      setCheckingAdminAccess(true);
+      const hasAccess = await AdminService.isAdminUid(user.uid);
+      if (active) {
+        setIsAppAdmin(hasAccess);
+        setCheckingAdminAccess(false);
+      }
+    };
+
+    checkAdminAccess();
+
+    return () => {
+      active = false;
+    };
+  }, [user]);
 
   // Sidebar navigation items
   const sidebarItems = [
@@ -1129,6 +1237,17 @@ export const AdminDashboard: React.FC = () => {
       setSavingBanner(false);
     }
   };
+
+  if (checkingAdminAccess) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-gray-800 mx-auto"></div>
+          <p className="mt-4 text-gray-600">Checking admin access...</p>
+        </div>
+      </div>
+    );
+  }
 
   // Only allow access to actual app admin
   if (!isAppAdmin) {
@@ -2181,16 +2300,7 @@ export const AdminDashboard: React.FC = () => {
                 </div>
 
                 {/* Key Metrics */}
-                <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                    <div className="text-blue-600 text-sm font-medium">Avg Approval Time</div>
-                    <div className="text-2xl font-bold text-blue-900">
-                      {analyticsData.timeMetrics.avgApprovalTime}d
-                    </div>
-                    <div className="text-xs text-blue-600 mt-1">
-                      {analyticsData.timeMetrics.avgApprovalTime > 0 ? 'Per request' : 'No data yet'}
-                    </div>
-                  </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
                   <div className="bg-green-50 border border-green-200 rounded-lg p-4">
                     <div className="text-green-600 text-sm font-medium">Active Users</div>
                     <div className="text-2xl font-bold text-green-900">
@@ -2209,13 +2319,22 @@ export const AdminDashboard: React.FC = () => {
                       All time searches
                     </div>
                   </div>
-                  <div className="bg-orange-50 border border-orange-200 rounded-lg p-4">
-                    <div className="text-orange-600 text-sm font-medium">Response Time</div>
-                    <div className="text-2xl font-bold text-orange-900">
-                      {analyticsData.timeMetrics.avgResponseTime}d
+                  <div className="bg-violet-50 border border-violet-200 rounded-lg p-4">
+                    <div className="text-violet-600 text-sm font-medium">Today Searches</div>
+                    <div className="text-2xl font-bold text-violet-900">
+                      {analyticsData.timeMetrics.dailySearches.toLocaleString()}
                     </div>
-                    <div className="text-xs text-orange-600 mt-1">
-                      {analyticsData.timeMetrics.avgResponseTime > 0 ? 'Average response' : 'No data yet'}
+                    <div className="text-xs text-violet-600 mt-1">
+                      Searches recorded today
+                    </div>
+                  </div>
+                  <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-4">
+                    <div className="text-emerald-600 text-sm font-medium">Today Confirmations</div>
+                    <div className="text-2xl font-bold text-emerald-900">
+                      {analyticsData.timeMetrics.dailyConfirmations.toLocaleString()}
+                    </div>
+                    <div className="text-xs text-emerald-600 mt-1">
+                      Stock confirmations today
                     </div>
                   </div>
                 </div>
@@ -2240,20 +2359,45 @@ export const AdminDashboard: React.FC = () => {
                       Registered owners
                     </div>
                   </div>
-                  <div className="bg-cyan-50 border border-cyan-200 rounded-lg p-4">
-                    <div className="text-cyan-600 text-sm font-medium">Approval Rate</div>
-                    <div className="text-xl font-bold text-cyan-900">
-                      {(() => {
-                        const total = analyticsData.requestTrends.reduce((sum, trend) => sum + trend.value, 0);
-                        const approved = analyticsData.requestTrends.find(trend => trend.name === 'Approved')?.value || 0;
-                        const rate = total > 0 ? Math.round((approved / total) * 100) : 0;
-                        return `${rate}%`;
-                      })()}
-                    </div>
-                    <div className="text-xs text-cyan-600 mt-1">
-                      Store requests
-                    </div>
+                </div>
+
+                {/* Daily Engagement Trend */}
+                <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
+                  <div className="flex items-center justify-between mb-3">
+                    <h4 className="text-sm font-semibold text-gray-900">Daily Searches and Confirmations</h4>
+                    <span className="text-xs text-gray-500">Last 7 days</span>
                   </div>
+
+                  {analyticsLoading ? (
+                    <div className="h-28 flex items-center justify-center">
+                      <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-gray-800"></div>
+                    </div>
+                  ) : analyticsData.dailyEngagement.length > 0 ? (
+                    <div className="overflow-x-auto">
+                      <table className="min-w-full text-sm">
+                        <thead>
+                          <tr className="text-left text-gray-600 border-b border-gray-200">
+                            <th className="py-2 pr-4 font-medium">Day</th>
+                            <th className="py-2 pr-4 font-medium">Searches</th>
+                            <th className="py-2 font-medium">Confirmations</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {analyticsData.dailyEngagement.map((row, index) => (
+                            <tr key={index} className="border-b border-gray-100 last:border-b-0">
+                              <td className="py-2 pr-4 text-gray-800">{row.date}</td>
+                              <td className="py-2 pr-4 text-violet-700 font-medium">{row.searches}</td>
+                              <td className="py-2 text-emerald-700 font-medium">{row.confirmations}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  ) : (
+                    <div className="h-20 flex items-center justify-center text-sm text-gray-500">
+                      No daily engagement data available yet.
+                    </div>
+                  )}
                 </div>
               </div>
 

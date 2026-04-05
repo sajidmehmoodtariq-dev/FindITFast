@@ -2,24 +2,35 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { signInWithEmailAndPassword } from 'firebase/auth';
 import { auth } from '../../services/firebase';
+import { AdminService } from '../../services/adminService';
+import { AuthService } from '../../services/authService';
 
 export const AdminAuth: React.FC = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [resetMessage, setResetMessage] = useState<string | null>(null);
   const navigate = useNavigate();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
     setError(null);
+    setResetMessage(null);
+
+    const normalizedEmail = email.trim().toLowerCase();
+    if (!AuthService.isValidEmail(normalizedEmail)) {
+      setError('Please enter a valid email address.');
+      setIsLoading(false);
+      return;
+    }
 
     try {
-      await signInWithEmailAndPassword(auth, email, password);
+      const credential = await signInWithEmailAndPassword(auth, normalizedEmail, password);
       
-      // Check if this is actually an admin (you could check against admins collection)
-      if (email === 'admin@finditfast.com') {
+      const isAdmin = await AdminService.isAdminUid(credential.user.uid);
+      if (isAdmin) {
         navigate('/admin');
       } else {
         setError('This login is for app administrators only.');
@@ -30,6 +41,24 @@ export const AdminAuth: React.FC = () => {
       setError('Invalid admin credentials. Please check your email and password.');
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const handleForgotPassword = async () => {
+    const normalizedEmail = email.trim().toLowerCase();
+    setError(null);
+    setResetMessage(null);
+
+    if (!AuthService.isValidEmail(normalizedEmail)) {
+      setError('Enter your admin email first, then click Forgot Password.');
+      return;
+    }
+
+    try {
+      await AuthService.sendResetPasswordEmail(normalizedEmail);
+      setResetMessage('Password reset email sent. Please check your inbox.');
+    } catch (resetError: any) {
+      setError(resetError.message || 'Failed to send reset email. Please try again.');
     }
   };
 
@@ -83,6 +112,12 @@ export const AdminAuth: React.FC = () => {
             </div>
           )}
 
+          {resetMessage && (
+            <div className="bg-green-50 border border-green-200 rounded-xl p-4">
+              <div className="text-sm text-green-700">{resetMessage}</div>
+            </div>
+          )}
+
           <div className="space-y-4">
             <div>
               <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-2">
@@ -98,6 +133,15 @@ export const AdminAuth: React.FC = () => {
                 className="w-full px-4 py-3 border border-gray-300 bg-gray-50 rounded-xl focus:outline-none focus:ring-2 focus:ring-gray-800 focus:border-transparent"
                 placeholder="Admin email address"
               />
+              <div className="mt-2 text-right">
+                <button
+                  type="button"
+                  onClick={handleForgotPassword}
+                  className="text-sm text-gray-700 hover:text-gray-900 underline"
+                >
+                  Forgot Password?
+                </button>
+              </div>
             </div>
             <div>
               <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-2">

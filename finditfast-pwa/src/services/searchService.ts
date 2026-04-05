@@ -1,5 +1,5 @@
 import { ItemService, StoreService } from './firestoreService';
-// import { trackSearch } from './analyticsService';
+import { trackSearch } from './analyticsService';
 // Import types are used in JSDoc comments and type annotations
 import type { SearchResult } from '../types/search';
 
@@ -98,12 +98,11 @@ export class SearchService {
 
       // Track search analytics
       try {
-        // Temporarily disable analytics to debug search
-        // trackSearch({
-        //   searchQuery: query,
-        //   resultsCount: rankedResults.length,
-        //   location: userLocation
-        // });
+        await trackSearch({
+          searchQuery: query,
+          resultsCount: rankedResults.length,
+          location: userLocation
+        });
       } catch (error) {
         console.log('Analytics tracking failed:', error);
       }

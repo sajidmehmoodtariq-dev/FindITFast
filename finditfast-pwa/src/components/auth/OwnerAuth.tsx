@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { AuthService, type OwnerRegistrationData, type AuthError } from '../../services/authService';
+import { AdminService } from '../../services/adminService';
 
 interface OwnerAuthProps {
   onAuthSuccess?: () => void;
@@ -34,23 +35,19 @@ export const OwnerAuth: React.FC<OwnerAuthProps> = ({ onAuthSuccess, onAuthError
     confirmPassword: '',
   });
   const [errors, setErrors] = useState<FormErrors>({});
+  const [resetMessage, setResetMessage] = useState<string | null>(null);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
     setFormData(prev => ({ ...prev, [name]: value }));
-    
-    // Check for admin email in login mode
-    if (name === 'email' && value === 'admin@finditfast.com' && isLogin) {
-      setErrors(prev => ({ 
-        ...prev, 
-        email: 'This is an admin email. Please use the Admin Login page instead.',
-        general: undefined 
-      }));
-    } else {
-      // Clear error when user starts typing
-      if (errors[name as keyof FormErrors]) {
-        setErrors(prev => ({ ...prev, [name]: undefined }));
-      }
+
+    // Clear error when user starts typing
+    if (errors[name as keyof FormErrors]) {
+      setErrors(prev => ({ ...prev, [name]: undefined }));
+    }
+
+    if (name === 'email' && resetMessage) {
+      setResetMessage(null);
     }
   };
 
@@ -100,17 +97,19 @@ export const OwnerAuth: React.FC<OwnerAuthProps> = ({ onAuthSuccess, onAuthError
 
     setIsLoading(true);
     setErrors({});
+    setResetMessage(null);
 
     try {
       if (isLogin) {
-        // Check if user is trying to login with admin credentials
-        if (formData.email === 'admin@finditfast.com' && formData.password === 'AdminPassword123!') {
-          alert('Admin Account Detected!\n\nYou are trying to login with admin credentials. Please use the Admin Login page instead.\n\nRedirecting you to Admin Login...');
-          navigate('/admin/auth');
+        const credential = await AuthService.signInOwner(formData.email, formData.password);
+        const isAdmin = await AdminService.isAdminUid(credential.user.uid);
+
+        if (isAdmin) {
+          await AuthService.signOutOwner();
+          setErrors({ general: 'This account is an app administrator. Please use Admin Login.' });
+          setIsLoading(false);
           return;
         }
-        
-        await AuthService.signInOwner(formData.email, formData.password);
       } else {
         const registrationData: OwnerRegistrationData = {
           name: formData.name,
@@ -140,6 +139,24 @@ export const OwnerAuth: React.FC<OwnerAuthProps> = ({ onAuthSuccess, onAuthError
       password: '',
       confirmPassword: '',
     });
+  };
+
+  const handleForgotPassword = async () => {
+    const normalizedEmail = formData.email.trim().toLowerCase();
+    setResetMessage(null);
+    setErrors(prev => ({ ...prev, general: undefined, email: undefined }));
+
+    if (!AuthService.isValidEmail(normalizedEmail)) {
+      setErrors(prev => ({ ...prev, email: 'Enter a valid email to reset your password.' }));
+      return;
+    }
+
+    try {
+      await AuthService.sendResetPasswordEmail(normalizedEmail);
+      setResetMessage('Password reset email sent. Please check your inbox.');
+    } catch (resetError: any) {
+      setErrors(prev => ({ ...prev, general: resetError.message || 'Failed to send reset email.' }));
+    }
   };
 
   return (
@@ -234,6 +251,17 @@ export const OwnerAuth: React.FC<OwnerAuthProps> = ({ onAuthSuccess, onAuthError
             placeholder="Enter your email address"
           />
           {errors.email && <p className="text-red-500 text-sm mt-1">{errors.email}</p>}
+          {isLogin && (
+            <div className="mt-2 text-right">
+              <button
+                type="button"
+                onClick={handleForgotPassword}
+                className="text-sm text-gray-600 hover:text-gray-800 underline"
+              >
+                Forgot Password?
+              </button>
+            </div>
+          )}
         </div>
 
         <div>
@@ -284,6 +312,12 @@ export const OwnerAuth: React.FC<OwnerAuthProps> = ({ onAuthSuccess, onAuthError
               </svg>
               <p className="text-red-600 text-sm">{errors.general}</p>
             </div>
+          </div>
+        )}
+
+        {resetMessage && (
+          <div className="bg-green-50 border border-green-200 rounded-xl p-4">
+            <p className="text-green-700 text-sm">{resetMessage}</p>
           </div>
         )}
 

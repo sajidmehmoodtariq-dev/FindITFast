@@ -1,6 +1,7 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
+import { AdminService } from '../../services/adminService';
 
 interface ProtectedRouteProps {
   children: React.ReactNode;
@@ -15,9 +16,38 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
 }) => {
   const { user, loading } = useAuth();
   const location = useLocation();
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [checkingAdmin, setCheckingAdmin] = useState(true);
+
+  useEffect(() => {
+    let active = true;
+
+    const checkAdminAccess = async () => {
+      if (!user) {
+        if (active) {
+          setIsAdmin(false);
+          setCheckingAdmin(false);
+        }
+        return;
+      }
+
+      setCheckingAdmin(true);
+      const adminAccess = await AdminService.isAdminUid(user.uid);
+      if (active) {
+        setIsAdmin(adminAccess);
+        setCheckingAdmin(false);
+      }
+    };
+
+    checkAdminAccess();
+
+    return () => {
+      active = false;
+    };
+  }, [user]);
 
   // Show loading spinner while checking authentication
-  if (loading) {
+  if (loading || checkingAdmin) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="text-center">
@@ -35,16 +65,21 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
     return <Navigate to={redirectTo} state={{ from: location }} replace />;
   }
 
-  // Check if this is an admin user
-  const isAdmin = user.email === 'admin@finditfast.com';
-  
   // If admin access is allowed and user is admin, allow access
-  if (allowAdmin && isAdmin) {
-    return <>{children}</>;
+  if (allowAdmin) {
+    if (isAdmin) {
+      return <>{children}</>;
+    }
+    return <Navigate to="/owner/dashboard" replace />;
   }
 
-  // For owner routes, allow access if user is authenticated
-  if (requireOwner && !isAdmin) {
+  // Owner routes should not be accessible to app admins
+  if (requireOwner && isAdmin) {
+    return <Navigate to="/admin" replace />;
+  }
+
+  // For owner routes, allow access if user is authenticated and not admin
+  if (requireOwner) {
     return <>{children}</>;
   }
 
