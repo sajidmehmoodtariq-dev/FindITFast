@@ -8,6 +8,7 @@ import { collection, query, where, getDocs, onSnapshot, doc, updateDoc, setDoc, 
 import { EmailAuthProvider, reauthenticateWithCredential, updatePassword, verifyBeforeUpdateEmail } from 'firebase/auth';
 
 export const AdminDashboard: React.FC = () => {
+  const HOME_BANNER_MAX_LENGTH = 1000;
   const { user } = useAuth();
   const navigate = useNavigate();
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -1206,6 +1207,14 @@ export const AdminDashboard: React.FC = () => {
     
     if (!homeBannerText.trim()) {
       setBannerStatus({ success: false, message: 'Please enter some text for the banner.' });
+      return;
+    }
+
+    if (homeBannerText.trim().length > HOME_BANNER_MAX_LENGTH) {
+      setBannerStatus({
+        success: false,
+        message: `Banner text must be ${HOME_BANNER_MAX_LENGTH} characters or fewer.`
+      });
       return;
     }
     
@@ -2924,12 +2933,16 @@ export const AdminDashboard: React.FC = () => {
                   <textarea
                     id="home-banner-text-ann"
                     value={homeBannerText}
-                    onChange={(e) => setHomeBannerText(e.target.value)}
+                    onChange={(e) => setHomeBannerText(e.target.value.slice(0, HOME_BANNER_MAX_LENGTH))}
                     placeholder="Enter announcement text"
+                    maxLength={HOME_BANNER_MAX_LENGTH}
                     className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 min-h-[120px]"
                   />
                   <div className="flex items-center justify-between">
                     <p className="text-xs text-gray-500">All users will see this when no search is active.</p>
+                    <p className="text-xs text-gray-500">
+                      {homeBannerText.length}/{HOME_BANNER_MAX_LENGTH}
+                    </p>
                     <div className="flex space-x-2">
                       <button
                         type="submit"

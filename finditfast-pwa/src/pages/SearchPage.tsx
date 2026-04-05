@@ -200,7 +200,7 @@ export const SearchPage: React.FC = () => {
           {!searchInput.trim() && (
             <div className="px-4 mb-6">
               <div className="bg-gradient-to-r from-blue-100 to-purple-100 rounded-2xl p-4 border border-blue-200">
-                <p className="text-sm text-blue-800 leading-relaxed font-medium">
+                <p className="text-sm text-blue-800 leading-relaxed font-medium whitespace-pre-wrap break-words max-h-56 overflow-y-auto pr-1">
                   {bannerText}
                 </p>
               </div>
