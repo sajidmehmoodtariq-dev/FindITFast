@@ -1,26 +1,37 @@
 import React, { useState, useRef, useCallback, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { MobileLayout, MobileContent } from '../components/common/MobileLayout';
-import { ItemService } from '../services/firestoreService';
+import { Timestamp } from 'firebase/firestore';
+import { ItemService, ReportService } from '../services/firestoreService';
 import type { Item } from '../types';
-import { validateAndPrepareImage, type CompressionResult } from '../utils/imageCompression';
+import {
+  validateAndPrepareImage,
+  fileToBase64,
+  isWithinFirestoreLimits,
+  type CompressionResult
+} from '../utils/imageCompression';
 
 interface CameraState {
   isSupported: boolean;
+  canUseGetUserMedia: boolean;
+  hasCaptureFallback: boolean;
+  permissionState: 'granted' | 'denied' | 'prompt' | 'unknown';
   isActive: boolean;
   stream: MediaStream | null;
   error: string | null;
 }
 
+const CAMERA_START_TIMEOUT_MS = 8000;
+
 export const ReportItemPage: React.FC = () => {
-  const { itemId } = useParams<{ itemId: string; storeId: string }>();
+  const { itemId, storeId } = useParams<{ itemId: string; storeId: string }>();
   const navigate = useNavigate();
   
   const [item, setItem] = useState<Item | null>(null);
   const [loading, setLoading] = useState(true);
   const [updatingLocation, setUpdatingLocation] = useState(false);
   const [processingImage, setProcessingImage] = useState(false);
-  const [imageUploadSuccess, setImageUploadSuccess] = useState(false);
+  const [startingCamera, setStartingCamera] = useState(false);
   const [reportData, setReportData] = useState({
     itemImage: null as string | null, // base64 string
     itemImagePreview: null as string | null,
@@ -33,6 +44,9 @@ export const ReportItemPage: React.FC = () => {
   
   const [camera, setCamera] = useState<CameraState>({
     isSupported: false,
+    canUseGetUserMedia: false,
+    hasCaptureFallback: false,
+    permissionState: 'unknown',
     isActive: false,
     stream: null,
     error: null
@@ -40,7 +54,7 @@ export const ReportItemPage: React.FC = () => {
   
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const itemFileInputRef = useRef<HTMLInputElement>(null);
+  const mobileCameraInputRef = useRef<HTMLInputElement>(null);
   
   const [currentCapture, setCurrentCapture] = useState<'item' | 'location' | null>(null);
 
@@ -65,21 +79,178 @@ export const ReportItemPage: React.FC = () => {
   // Check camera support
   useEffect(() => {
     const checkCameraSupport = () => {
-      const isSupported = !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia);
-      setCamera(prev => ({ ...prev, isSupported }));
+      const isMobileDevice =
+        /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent) ||
+        navigator.maxTouchPoints > 1;
+      const canUseGetUserMedia = !!(
+        window.isSecureContext &&
+        navigator.mediaDevices &&
+        navigator.mediaDevices.getUserMedia
+      );
+      const hasCaptureFallback = isMobileDevice;
+
+      setCamera(prev => ({
+        ...prev,
+        isSupported: canUseGetUserMedia || hasCaptureFallback,
+        canUseGetUserMedia,
+        hasCaptureFallback
+      }));
     };
 
     checkCameraSupport();
   }, []);
 
-  // Start camera
-  const startCamera = useCallback(async (captureType: 'item' | 'location') => {
-    if (!camera.isSupported) return;
+  const checkCameraPermission = useCallback(async (): Promise<'granted' | 'denied' | 'prompt' | 'unknown'> => {
+    try {
+      if (!('permissions' in navigator) || !navigator.permissions?.query) {
+        return 'unknown';
+      }
+
+      const status = await navigator.permissions.query({ name: 'camera' as PermissionName });
+      const state = (status.state as 'granted' | 'denied' | 'prompt') || 'unknown';
+      setCamera(prev => ({ ...prev, permissionState: state }));
+      return state;
+    } catch {
+      return 'unknown';
+    }
+  }, []);
+
+  const processCapturedFile = useCallback(async (file: File) => {
+    setProcessingImage(true);
+    setCamera(prev => ({ ...prev, error: null }));
+
+    if (!itemId || !storeId) {
+      setCamera(prev => ({
+        ...prev,
+        error: 'Missing item or store information. Please go back and try again.'
+      }));
+      setProcessingImage(false);
+      return;
+    }
 
     try {
+      const validation = await validateAndPrepareImage(file, 'main');
+      let reportImageBase64: string;
+
+      if (!validation.isValid) {
+        // Fallback path for formats/browser combinations that fail compression (e.g. some "recently used" photos).
+        const fallbackBase64 = await fileToBase64(file);
+        if (!isWithinFirestoreLimits(fallbackBase64)) {
+          throw new Error(validation.errors.join(', ') || 'Selected image is too large to upload.');
+        }
+
+        reportImageBase64 = fallbackBase64;
+
+        if (reportData.itemImagePreview) {
+          URL.revokeObjectURL(reportData.itemImagePreview);
+        }
+
+        const fallbackPreviewUrl = URL.createObjectURL(file);
+        setReportData(prev => ({
+          ...prev,
+          itemImage: fallbackBase64,
+          itemImagePreview: fallbackPreviewUrl,
+          compressionResult: null
+        }));
+      } else {
+        reportImageBase64 = validation.base64;
+
+        if (reportData.itemImagePreview) {
+          URL.revokeObjectURL(reportData.itemImagePreview);
+        }
+
+        const previewUrl = URL.createObjectURL(validation.compressionResult.compressedFile);
+
+        setReportData(prev => ({
+          ...prev,
+          itemImage: validation.base64,
+          itemImagePreview: previewUrl,
+          compressionResult: validation.compressionResult
+        }));
+      }
+
+      await ReportService.create({
+        itemId,
+        storeId,
+        type: 'missing',
+        timestamp: Timestamp.now(),
+        status: 'pending',
+        metadata: {
+          ...(item?.name ? { itemName: item.name } : {}),
+          itemImageBase64: reportImageBase64,
+          reportType: 'customer_item_photo'
+        }
+      });
+    } catch (error) {
+      console.error('Failed to process and update item image:', error);
+      const message = error instanceof Error
+        ? error.message
+        : 'Failed to process selected photo. Please take a new photo and try again.';
+      setCamera(prev => ({
+        ...prev,
+        error: `Photo upload failed: ${message}`
+      }));
+    } finally {
+      setProcessingImage(false);
+    }
+  }, [itemId, reportData.itemImagePreview]);
+
+  // Start camera
+  const startCamera = useCallback(async (captureType: 'item' | 'location') => {
+    if (!camera.isSupported) {
+      setCamera(prev => ({
+        ...prev,
+        error: 'Camera is not supported on this device or browser.',
+        isActive: false,
+        stream: null
+      }));
+      return;
+    }
+
+    try {
+      setStartingCamera(true);
+      if (!camera.canUseGetUserMedia) {
+        // Mobile fallback: still camera-only via capture input.
+        if (camera.hasCaptureFallback && mobileCameraInputRef.current) {
+          setCamera(prev => ({ ...prev, error: null, isActive: false }));
+          mobileCameraInputRef.current.click();
+          return;
+        }
+
+        setCamera(prev => ({
+          ...prev,
+          error: 'Camera requires HTTPS or browser support. Please open the app in Safari/Chrome over HTTPS.',
+          isActive: false,
+          stream: null
+        }));
+        return;
+      }
+
+      const permission = await checkCameraPermission();
+      if (permission === 'denied') {
+        setCamera(prev => ({
+          ...prev,
+          permissionState: 'denied',
+          error: 'Camera permission is blocked in browser settings. Enable camera for this site, then tap Retry.',
+          isActive: false,
+          stream: null
+        }));
+        return;
+      }
+
+      setCamera(prev => ({ ...prev, error: null }));
       setCurrentCapture(captureType);
+
+      const getUserMediaWithTimeout = async (constraints: MediaStreamConstraints): Promise<MediaStream> => {
+        return await Promise.race([
+          navigator.mediaDevices.getUserMedia(constraints),
+          new Promise<never>((_, reject) => {
+            setTimeout(() => reject(new Error('Camera startup timed out')), CAMERA_START_TIMEOUT_MS);
+          })
+        ]);
+      };
       
-      const constraints = {
+      const preferredConstraints: MediaStreamConstraints = {
         video: {
           facingMode: 'environment', // Use back camera on mobile
           width: { ideal: 1920 },
@@ -87,11 +258,20 @@ export const ReportItemPage: React.FC = () => {
         }
       };
 
-      const stream = await navigator.mediaDevices.getUserMedia(constraints);
+      let stream: MediaStream;
+      try {
+        stream = await getUserMediaWithTimeout(preferredConstraints);
+      } catch (preferredError) {
+        // Desktop/laptop fallback where facingMode constraint can fail.
+        stream = await getUserMediaWithTimeout({ video: true });
+      }
       
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
-        videoRef.current.play();
+        // Don't block UI on play() because some browsers keep this pending.
+        void videoRef.current.play().catch((playError) => {
+          console.warn('Video playback did not start immediately:', playError);
+        });
       }
 
       setCamera(prev => ({
@@ -101,14 +281,32 @@ export const ReportItemPage: React.FC = () => {
         error: null
       }));
     } catch (error) {
-      console.error('Camera access failed:', error);
+      console.warn('Camera access failed:', error);
+
+      let message = 'Failed to access camera. Please check permissions.';
+      if (error instanceof DOMException) {
+        if (error.name === 'NotAllowedError' || error.name === 'PermissionDeniedError') {
+          message = 'Camera permission denied. Enable camera access in browser/site settings, then tap Retry.';
+          setCamera(prev => ({ ...prev, permissionState: 'denied' }));
+        } else if (error.name === 'NotFoundError') {
+          message = 'No camera was detected on this device.';
+        } else if (error.name === 'NotReadableError') {
+          message = 'Camera is already in use by another app or tab. Close it and tap Retry.';
+        }
+      } else if (error instanceof Error && error.message === 'Camera startup timed out') {
+        message = 'Camera did not open in time. Please tap Retry.';
+      }
+
       setCamera(prev => ({
         ...prev,
-        error: 'Failed to access camera. Please check permissions.',
+        error: message,
         isActive: false
       }));
+      setCurrentCapture(null);
+    } finally {
+      setStartingCamera(false);
     }
-  }, [camera.isSupported]);
+  }, [camera.isSupported, camera.canUseGetUserMedia, camera.hasCaptureFallback, checkCameraPermission]);
 
   // Stop camera
   const stopCamera = useCallback(() => {
@@ -144,95 +342,62 @@ export const ReportItemPage: React.FC = () => {
     // Convert canvas to blob for compression
     canvas.toBlob(async (blob) => {
       if (!blob || currentCapture !== 'item') return;
-
-      setProcessingImage(true);
       
       try {
-        // Create File from blob for compression
         const file = new File([blob], 'camera_image.jpg', { type: 'image/jpeg' });
-        
-        // Compress the image
-        const validation = await validateAndPrepareImage(file, 'main');
-        
-        if (!validation.isValid) {
-          alert(`Image processing failed: ${validation.errors.join(', ')}`);
-          return;
-        }
-        
-        const previewUrl = URL.createObjectURL(validation.compressionResult.compressedFile);
-        
-        setReportData(prev => ({
-          ...prev,
-          itemImage: validation.base64,
-          itemImagePreview: previewUrl,
-          compressionResult: validation.compressionResult
-        }));
-        
-        // Automatically update the item image in database
-        if (itemId) {
-          await ItemService.update(itemId, {
-            imageUrl: validation.base64
-          });
-          console.log('🖼️ Item image updated successfully from camera:', {
-            originalSize: `${(validation.compressionResult.originalSize / 1024).toFixed(2)} KB`,
-            compressedSize: `${(validation.compressionResult.compressedSize / 1024).toFixed(2)} KB`,
-            compressionRatio: `${validation.compressionResult.compressionRatio.toFixed(1)}%`
-          });
-        }
+        await processCapturedFile(file);
       } catch (error) {
         console.error('Failed to process and update item image from camera:', error);
         alert('Failed to update item image. Please try again.');
       } finally {
-        setProcessingImage(false);
         stopCamera();
       }
     }, 'image/jpeg', 0.8);
-  }, [currentCapture, stopCamera, itemId]);
+  }, [currentCapture, stopCamera, processCapturedFile]);
 
-  // Handle file input
-  const handleFileChange = useCallback(async (file: File | null) => {
+  const handleMobileCameraCapture = useCallback(async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
     if (!file) return;
 
-    setProcessingImage(true);
-    
-    try {
-      // Compress and validate the image
-      const validation = await validateAndPrepareImage(file, 'main');
-      
-      if (!validation.isValid) {
-        alert(`Image processing failed: ${validation.errors.join(', ')}`);
-        return;
-      }
-      
-      const previewUrl = URL.createObjectURL(validation.compressionResult.compressedFile);
-      
-      setReportData(prev => ({
-        ...prev,
-        itemImage: validation.base64,
-        itemImagePreview: previewUrl,
-        compressionResult: validation.compressionResult
-      }));
-      
-      // Automatically update the item image in database
-      if (itemId) {
-        await ItemService.update(itemId, {
-          imageUrl: validation.base64
-        });
-        console.log('🖼️ Item image updated successfully:', {
-          originalSize: `${(validation.compressionResult.originalSize / 1024).toFixed(2)} KB`,
-          compressedSize: `${(validation.compressionResult.compressedSize / 1024).toFixed(2)} KB`,
-          compressionRatio: `${validation.compressionResult.compressionRatio.toFixed(1)}%`
-        });
-        setImageUploadSuccess(true);
-        setTimeout(() => setImageUploadSuccess(false), 3000);
-      }
-    } catch (error) {
-      console.error('Failed to process and update item image:', error);
-      alert('Failed to update item image. Please try again.');
-    } finally {
-      setProcessingImage(false);
+    await processCapturedFile(file);
+
+    // Reset input so selecting the same photo again still triggers onChange.
+    event.target.value = '';
+  }, [processCapturedFile]);
+
+  const handleUseCameraClick = useCallback(() => {
+    setCamera(prev => ({ ...prev, error: null }));
+    if (camera.canUseGetUserMedia) {
+      startCamera('item');
+      return;
     }
-  }, [itemId]);
+
+    if (mobileCameraInputRef.current) {
+      setStartingCamera(true);
+      mobileCameraInputRef.current.click();
+      setTimeout(() => setStartingCamera(false), 500);
+      return;
+    }
+
+    setCamera(prev => ({
+      ...prev,
+      error: 'Camera is not available in this browser. Please try Safari or Chrome on a device with a camera.'
+    }));
+  }, [camera.canUseGetUserMedia, startCamera]);
+
+  const handleRetryCamera = useCallback(async () => {
+    const permission = await checkCameraPermission();
+    if (permission === 'denied') {
+      setCamera(prev => ({
+        ...prev,
+        permissionState: 'denied',
+        error: 'Camera is still blocked. Please allow camera in site/browser settings first, then tap Retry.'
+      }));
+      return;
+    }
+
+    handleUseCameraClick();
+  }, [checkCameraPermission, handleUseCameraClick]);
 
   // Handle location selection from floorplan modal
   const handleLocationSelect = useCallback(async (position: { x: number; y: number }) => {
@@ -377,16 +542,6 @@ export const ReportItemPage: React.FC = () => {
                     <p>Compression: {reportData.compressionResult.compressionRatio.toFixed(1)}% smaller</p>
                   </div>
                 )}
-                {imageUploadSuccess && (
-                  <div className="mt-2 p-2 bg-green-100 border border-green-300 rounded-lg">
-                    <div className="flex items-center justify-center gap-2 text-green-800">
-                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                      </svg>
-                      <span className="font-medium">🖼️ Image uploaded successfully!</span>
-                    </div>
-                  </div>
-                )}
               </div>
             ) : null}
             
@@ -396,34 +551,42 @@ export const ReportItemPage: React.FC = () => {
                   <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600 mr-2"></div>
                   Processing image...
                 </div>
+              ) : startingCamera ? (
+                <div className="px-6 py-3 bg-blue-100 text-blue-700 rounded-lg flex items-center justify-center">
+                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600 mr-2"></div>
+                  Opening camera...
+                </div>
               ) : (
                 <>
-                  {camera.isSupported && (
-                    <button
-                      onClick={() => startCamera('item')}
-                      disabled={camera.isActive}
-                      className="bg-blue-500 text-white px-6 py-3 rounded-lg font-medium hover:bg-blue-600 transition-colors disabled:opacity-50"
-                    >
-                      📷 Use Camera
-                    </button>
-                  )}
-                  
                   <button
-                    onClick={() => itemFileInputRef.current?.click()}
-                    className="bg-gray-500 text-white px-6 py-3 rounded-lg font-medium hover:bg-gray-600 transition-colors"
+                    onClick={handleUseCameraClick}
+                    disabled={camera.isActive || startingCamera}
+                    className="bg-blue-500 text-white px-6 py-3 rounded-lg font-medium hover:bg-blue-600 transition-colors disabled:opacity-50"
                   >
-                    📁 Choose from Files
+                    📷 Use Camera
                   </button>
                 </>
               )}
-              
-              <input
-                type="file"
-                ref={itemFileInputRef}
-                accept="image/*"
-                onChange={(e) => handleFileChange(e.target.files?.[0] || null)}
-                className="hidden"
-              />
+
+              {camera.error && (
+                <div className="bg-red-50 border border-red-200 rounded-lg p-3">
+                  <div className="flex items-start justify-between gap-3">
+                    <p className="text-red-600 text-sm flex-1">{camera.error}</p>
+                    <button
+                      type="button"
+                      onClick={handleRetryCamera}
+                      className="text-sm font-medium text-red-700 hover:text-red-800 underline shrink-0"
+                    >
+                      Retry
+                    </button>
+                  </div>
+                  {camera.permissionState === 'denied' && (
+                    <p className="text-xs text-red-700 mt-2">
+                      Tip: click the lock icon in your browser address bar and allow camera for this site.
+                    </p>
+                  )}
+                </div>
+              )}
             </div>
           </div>
 
@@ -461,15 +624,6 @@ export const ReportItemPage: React.FC = () => {
             </div>
           </div>
 
-
-
-          {/* Error Display */}
-          {camera.error && (
-            <div className="bg-red-50 border border-red-200 rounded-lg p-4">
-              <p className="text-red-600">{camera.error}</p>
-            </div>
-          )}
-
           {/* Go to Home Button */}
           <div className="pb-safe">
             <button
@@ -482,6 +636,16 @@ export const ReportItemPage: React.FC = () => {
 
           {/* Hidden canvas for photo capture */}
           <canvas ref={canvasRef} className="hidden" />
+
+          {/* Mobile fallback camera capture (still camera-only via capture attribute) */}
+          <input
+            ref={mobileCameraInputRef}
+            type="file"
+            accept="image/*"
+            capture="environment"
+            onChange={handleMobileCameraCapture}
+            className="hidden"
+          />
         </div>
       </MobileContent>
 
@@ -518,6 +682,7 @@ const FloorplanModal: React.FC<FloorplanModalProps> = ({
   const [store, setStore] = useState<any>(null);
   const [items, setItems] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [pendingLocation, setPendingLocation] = useState<{ x: number; y: number } | null>(null);
 
   useEffect(() => {
     const loadData = async () => {
@@ -717,7 +882,17 @@ const FloorplanModal: React.FC<FloorplanModalProps> = ({
   }, [storeId]);
 
   const handleLocationClick = (position: { x: number; y: number }) => {
-    onLocationSelect(position);
+    setPendingLocation(position);
+  };
+
+  const handleConfirmLocation = async () => {
+    if (!pendingLocation) return;
+    await onLocationSelect(pendingLocation);
+    setPendingLocation(null);
+  };
+
+  const handleCancelSelection = () => {
+    setPendingLocation(null);
   };
 
   if (loading) {
@@ -752,7 +927,7 @@ const FloorplanModal: React.FC<FloorplanModalProps> = ({
         {/* Instructions */}
         <div className="p-4 bg-blue-50 border-b">
           <p className="text-blue-800 text-sm">
-            <strong>Current item location is highlighted.</strong> Click anywhere on the floorplan to set the new location, then click "Done" to save.
+            <strong>Current item location is highlighted.</strong> Tap the floorplan to select a new point, then confirm it below.
           </p>
         </div>
 
@@ -764,6 +939,7 @@ const FloorplanModal: React.FC<FloorplanModalProps> = ({
               items={items}
               selectedItemId={itemId}
               onLocationClick={handleLocationClick}
+              pendingLocation={pendingLocation}
             />
           ) : (
             <div className="text-center py-8 text-gray-500">
@@ -774,20 +950,49 @@ const FloorplanModal: React.FC<FloorplanModalProps> = ({
 
         {/* Footer */}
         <div className="p-4 border-t bg-gray-50">
-          <div className="flex gap-3">
+          <div className="space-y-3">
+            {pendingLocation ? (
+              <div className="rounded-lg border border-blue-200 bg-blue-50 p-3">
+                <div className="flex items-center justify-between gap-3 text-sm">
+                  <div>
+                    <p className="font-medium text-blue-900">New location selected</p>
+                    <p className="text-blue-700">
+                      Selected point: {pendingLocation.x.toFixed(1)}%, {pendingLocation.y.toFixed(1)}%
+                    </p>
+                  </div>
+                  <span className="text-xs font-medium text-blue-700 bg-white px-2 py-1 rounded-full border border-blue-200">Pending</span>
+                </div>
+              </div>
+            ) : (
+              <div className="rounded-lg border border-gray-200 bg-white p-3 text-sm text-gray-600">
+                Tap the floorplan to select a new location.
+              </div>
+            )}
+
+            <div className="flex gap-3">
             {isUpdating ? (
               <div className="flex-1 px-4 py-2 bg-blue-100 text-blue-700 rounded-lg flex items-center justify-center">
                 <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600 mr-2"></div>
                 Processing location...
               </div>
             ) : (
-              <button
-                onClick={onClose}
-                className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50"
-              >
-                Cancel
-              </button>
+              <>
+                <button
+                  onClick={pendingLocation ? handleCancelSelection : onClose}
+                  className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50"
+                >
+                  {pendingLocation ? 'Clear Selection' : 'Cancel'}
+                </button>
+                <button
+                  onClick={handleConfirmLocation}
+                  disabled={!pendingLocation}
+                  className="flex-1 px-4 py-2 rounded-lg font-medium transition-colors bg-blue-600 text-white hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed"
+                >
+                  Confirm Location
+                </button>
+              </>
             )}
+            </div>
           </div>
         </div>
       </div>
@@ -801,13 +1006,15 @@ interface FloorplanModalViewerProps {
   items: any[];
   selectedItemId: string;
   onLocationClick: (position: { x: number; y: number }) => void;
+  pendingLocation: { x: number; y: number } | null;
 }
 
 const FloorplanModalViewer: React.FC<FloorplanModalViewerProps> = ({
   store,
   items,
   selectedItemId,
-  onLocationClick
+  onLocationClick,
+  pendingLocation
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
 
@@ -872,6 +1079,24 @@ const FloorplanModalViewer: React.FC<FloorplanModalViewerProps> = ({
           </div>
         ))
       }
+
+      {pendingLocation && (
+        <div
+          className="absolute z-20 pointer-events-none"
+          style={{
+            left: `${pendingLocation.x}%`,
+            top: `${pendingLocation.y}%`,
+            transform: 'translate(-50%, -50%)'
+          }}
+        >
+          <div className="relative flex items-center justify-center">
+            <div className="absolute inset-0 w-10 h-10 rounded-full bg-blue-500 animate-ping opacity-70" />
+            <div className="absolute inset-0 w-8 h-8 rounded-full bg-blue-600 border-4 border-white shadow-lg flex items-center justify-center">
+              <span className="text-white text-xs font-bold">•</span>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
