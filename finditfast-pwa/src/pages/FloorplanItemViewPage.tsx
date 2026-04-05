@@ -2,6 +2,8 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { StorePlanService, ItemService, StoreService } from '../services/firestoreService';
 import { MobileLayout, MobileContent, MobileHeader } from '../components/common/MobileLayout';
+import { StockConfirmationButtons } from '../components/StockConfirmationButtons';
+import { useAuth } from '../contexts/AuthContext';
 import { getStorePlanImageUrl } from '../utils/storePlanCompatibility';
 import type { StorePlan, Item, Store } from '../types';
 
@@ -9,6 +11,7 @@ export const FloorplanItemViewPage: React.FC = () => {
   const { storeId } = useParams<{ storeId: string }>();
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
+  const { user } = useAuth();
   
   const itemId = searchParams.get('itemId');
   
@@ -30,9 +33,21 @@ export const FloorplanItemViewPage: React.FC = () => {
   
   // Blinking animation state
   const [isBlinking, setIsBlinking] = useState(true);
+  const [anonymousId, setAnonymousId] = useState<string>('');
   
   const floorplanRef = useRef<HTMLDivElement>(null);
   const imageRef = useRef<HTMLImageElement>(null);
+
+  useEffect(() => {
+    let devId = localStorage.getItem('deviceId');
+    if (!devId) {
+      devId = 'device_' + Math.random().toString(36).substr(2, 9);
+      localStorage.setItem('deviceId', devId);
+    }
+    setAnonymousId(devId);
+  }, []);
+
+  const userId = user?.uid ?? anonymousId;
 
   useEffect(() => {
     const loadFloorplanData = async () => {
@@ -381,6 +396,18 @@ export const FloorplanItemViewPage: React.FC = () => {
           </div>
 
           {/* Action Buttons */}
+          {targetItem && (
+            <div className="absolute bottom-20 left-4 right-4 bg-white/95 backdrop-blur-sm rounded-xl shadow-lg px-3 pb-3 pt-2">
+              <p className="text-sm font-semibold text-gray-800">Did you find this item</p>
+              <StockConfirmationButtons
+                item={targetItem}
+                userId={userId}
+                variant="map"
+                title=""
+              />
+            </div>
+          )}
+
           <div className="absolute bottom-4 left-4 right-4 flex space-x-3">
             {targetItem && (
               <button

@@ -7,9 +7,16 @@ import { stockConfirmationService } from '../services/stockConfirmationService';
 interface StockConfirmationButtonsProps {
     item: Item;
     userId: string | null;
+    variant?: 'default' | 'map';
+    title?: string;
 }
 
-export const StockConfirmationButtons: React.FC<StockConfirmationButtonsProps> = ({ item, userId }) => {
+export const StockConfirmationButtons: React.FC<StockConfirmationButtonsProps> = ({
+    item,
+    userId,
+    variant = 'default',
+    title = 'Update Stock Status'
+}) => {
     const [isDisabled, setIsDisabled] = useState(false);
     const [isLoading, setIsLoading] = useState(false);
     const [toastMessage, setToastMessage] = useState<string | null>(null);
@@ -60,9 +67,17 @@ export const StockConfirmationButtons: React.FC<StockConfirmationButtonsProps> =
         }
     };
 
+    const yellowLabel = variant === 'map'
+        ? 'Low Stock – I Saw Only a Few'
+        : 'Low Stock – Only a Few Left';
+
+    const redLabel = variant === 'map'
+        ? "Out of Stock – I Couldn't Find It"
+        : 'Out of Stock – Not Available';
+
     return (
         <div className="flex flex-col gap-2 mt-4 relative">
-            <p className="text-sm font-semibold text-gray-700">Update Stock Status</p>
+            {title && <p className="text-sm font-semibold text-gray-700">{title}</p>}
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
                 <button
                     onClick={() => handleConfirm('GREEN')}
@@ -76,14 +91,14 @@ export const StockConfirmationButtons: React.FC<StockConfirmationButtonsProps> =
                     disabled={isDisabled || isLoading}
                     className="flex items-center justify-center gap-2 px-3 py-2 bg-yellow-50 text-yellow-700 border border-yellow-200 rounded-md font-medium text-sm hover:bg-yellow-100 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                 >
-                    <span>🟡</span> Low Stock – Only a Few Left
+                    <span>🟡</span> {yellowLabel}
                 </button>
                 <button
                     onClick={() => handleConfirm('RED')}
                     disabled={isDisabled || isLoading}
                     className="flex items-center justify-center gap-2 px-3 py-2 bg-red-50 text-red-700 border border-red-200 rounded-md font-medium text-sm hover:bg-red-100 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                 >
-                    <span>🔴</span> Out of Stock – Not Available
+                    <span>🔴</span> {redLabel}
                 </button>
             </div>
 
