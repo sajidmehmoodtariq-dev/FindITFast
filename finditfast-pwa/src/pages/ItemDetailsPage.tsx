@@ -105,22 +105,6 @@ export const ItemDetailsPage: React.FC = () => {
     return price.startsWith('$') ? price : `$${price}`;
   };
 
-  const formatVerificationStatus = (verified: boolean, verifiedAt: unknown): string => {
-    if (!verified || !verifiedAt) return '';
-
-    try {
-      const verifiedDate = (verifiedAt as { toDate?: () => Date })?.toDate?.() || new Date(verifiedAt as string | number | Date);
-      const now = new Date();
-      const diffTime = Math.abs(now.getTime() - verifiedDate.getTime());
-      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-
-      if (diffDays === 1) return 'Last confirmed 1 day ago';
-      return `Last confirmed ${diffDays} days ago`;
-    } catch {
-      return 'Last confirmed';
-    }
-  };
-
   if (isLoading) {
     return (
       <MobileLayout>
@@ -247,15 +231,6 @@ export const ItemDetailsPage: React.FC = () => {
                 )}
               </div>
 
-              {/* Verification Status */}
-              {item.verified && (
-                <div className="pt-4 border-t border-gray-100">
-                  <p className="text-sm text-gray-600">
-                    {formatVerificationStatus(item.verified, item.verifiedAt)}
-                  </p>
-                </div>
-              )}
-
               {/* Report Warning */}
               {item.reportCount > 0 && (
                 <div className="mt-4 pt-4 border-t border-gray-100">
@@ -274,7 +249,27 @@ export const ItemDetailsPage: React.FC = () => {
               <div className="mt-4 pt-4 border-t border-gray-100">
                 <h3 className="text-sm font-semibold text-gray-900 mb-3">Did you find this item</h3>
                 <StockTrustBadge item={item} />
-                <StockConfirmationButtons item={item} userId={userId} />
+                <StockConfirmationButtons
+                  item={item}
+                  userId={userId}
+                  onConfirmed={(result) => {
+                    setItem((prev) => {
+                      if (!prev) return prev;
+
+                      const inStockFromType = result.type === 'RED' ? false : true;
+
+                      return {
+                        ...prev,
+                        inStock: inStockFromType,
+                        lastConfirmedAt: result.lastConfirmedAt,
+                        weeklyGreenCount: result.weeklyGreenCount,
+                        weeklyYellowCount: result.weeklyYellowCount,
+                        recentRedCount24h: result.recentRedCount24h,
+                        statusOverride: result.statusOverride
+                      };
+                    });
+                  }}
+                />
               </div>
             </div>
 

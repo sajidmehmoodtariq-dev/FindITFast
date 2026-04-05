@@ -1,0 +1,216 @@
+FindItFast - Safe Change Sequence and Verification Flow
+Date: 2026-04-05
+
+Purpose
+- Apply requested fixes/features in the safest order.
+- Reduce regression risk by shipping in small, testable batches.
+- After each batch, run the verification steps before moving on.
+
+Release Strategy
+- Do not combine all requests in one release.
+- Complete each change set below in order.
+- If a verification fails, stop and fix before continuing.
+
+====================================================================
+CHANGE SET 1 - Text/UI wording only (lowest risk)
+====================================================================
+Scope
+1) Replace all user-facing "Verified X days ago" with "Last confirmed X days ago".
+2) Home green button text: "Store Owner Login/Sign Up".
+3) Add heading text "Did you find this item" above stock confirmation buttons where already present.
+
+Why first
+- Pure display changes with minimal logic impact.
+- Fast to validate visually on mobile and desktop.
+
+How to verify
+1. Open home page with no search query.
+2. Confirm green CTA text is exactly: "Store Owner Login/Sign Up".
+3. Search an item with a verification timestamp.
+4. Confirm cards/details show "Last confirmed ..." (not "Verified ...").
+5. Open item details page.
+6. Confirm heading "Did you find this item" appears above stock buttons.
+Pass criteria
+- No old wording remains in user UI.
+- No console errors introduced.
+
+====================================================================
+CHANGE SET 2 - Camera/report screen stability (high user pain, isolated screen)
+====================================================================
+Scope
+1) Remove "Choose from Files" from report flow.
+2) Keep only camera capture path.
+3) Fix camera flow after "I Have Arrived" -> "Item Missing" navigation.
+4) Add clear camera permission and failure states.
+
+Why second
+- Directly addresses your top broken workflow.
+- Isolated mostly to report page and media handlers.
+
+How to verify
+1. Search item -> open item details -> tap "I Have Arrived" -> tap "Item Missing".
+2. Tap "Use Camera".
+3. Confirm camera opens (rear camera on mobile where available).
+4. Capture photo and confirm success message appears.
+5. Return and repeat twice to ensure it still works on second/third attempt.
+6. Deny camera permission and confirm friendly error + retry path appears.
+7. Confirm there is no "Choose from Files" button in this flow.
+Pass criteria
+- Camera works repeatedly without page refresh.
+- Permission denial is handled cleanly.
+- Only camera input is available on report screen.
+
+====================================================================
+CHANGE SET 3 - Report location update UX (prevent bad location updates)
+====================================================================
+Scope
+1) In "Select New Location", show the newly selected point before save.
+2) Require explicit confirmation (Confirm/Cancel) before writing location.
+3) Keep visible indicator of old vs new location during confirmation.
+
+Why third
+- Prevents accidental map updates and improves trust.
+- Builds on already touched report page logic.
+
+How to verify
+1. Open report page and select "New Location".
+2. Tap on map once.
+3. Confirm selected marker appears immediately.
+4. Confirm location is NOT saved yet until user taps confirm.
+5. Tap cancel and ensure original location remains unchanged.
+6. Repeat and tap confirm; verify item location updates afterward.
+Pass criteria
+- No auto-save on single tap.
+- Confirm flow works and writes only on explicit approval.
+
+====================================================================
+CHANGE SET 4 - Map screen confirmation UX (core engagement feature)
+====================================================================
+Scope
+1) Add 3 stock buttons to map screen (above "Item Missing" and "Back to Search").
+2) Add heading: "Did you find this item".
+3) Button labels on map:
+   - Green: "In Stock - I Found It"
+   - Yellow: "Low Stock - I Saw Only a Few"
+   - Red: "Out of Stock - I Couldn't Find It"
+4) Keep item details page buttons aligned with these labels where required.
+
+Why fourth
+- Core behavior change in shopper journey.
+- Should be validated only after camera/report fixes are stable.
+
+How to verify
+1. Search item -> "I Have Arrived" to map screen.
+2. Confirm heading appears above the 3 new buttons.
+3. Confirm buttons are positioned above bottom action row.
+4. Tap each button in separate runs and verify action succeeds.
+5. Confirm post-tap feedback appears immediately.
+Pass criteria
+- Buttons are visible, tappable, and correctly worded.
+- Layout works on small mobile viewport without overlap.
+
+====================================================================
+CHANGE SET 5 - Confirmation feedback and immediate trust updates
+====================================================================
+Scope
+1) Show instant toast: "Thanks - stock updated".
+2) Show secondary reinforcement text: "You just helped other shoppers".
+3) Update visible item state immediately:
+   - Badge/state reflects new status.
+   - Timestamp shows "Just confirmed".
+4) Optional signal: "N people confirmed this today" if data available.
+
+Why fifth
+- Psychological reinforcement for repeat confirmations.
+- Requires UI state + service updates, so place after map button rollout.
+
+How to verify
+1. Submit a stock confirmation.
+2. Confirm instant toast appears within ~0.5s.
+3. Confirm reinforcement text appears.
+4. Confirm badge/timestamp updates on same screen without manual refresh.
+5. Refresh page and confirm persisted values remain correct.
+Pass criteria
+- Immediate UI feedback and persisted backend values match.
+- Time-decay logic remains consistent after refresh.
+
+====================================================================
+CHANGE SET 6 - Analytics upgrade (daily searches + daily confirmations)
+====================================================================
+Scope
+1) Track and display daily searches.
+2) Track and display daily confirmations.
+3) Add chart/table in admin analytics for day-by-day trend.
+
+Why sixth
+- Depends on stable confirmation events and search event wiring.
+- Best implemented after user interactions are finalized.
+
+How to verify
+1. Run 3-5 searches today.
+2. Submit 2-3 confirmations today.
+3. Open admin analytics dashboard and refresh.
+4. Confirm today count for searches matches expected minimum.
+5. Confirm today count for confirmations matches expected minimum.
+6. Confirm historical daily rows/charts render without errors.
+Pass criteria
+- Daily metrics populate correctly and update same day.
+- No missing/undefined metric cards.
+
+====================================================================
+CHANGE SET 7 - Auth hardening and account recovery
+====================================================================
+Scope
+1) Add forgot-password flow (email reset).
+2) Ensure strict email validation in all auth entry points.
+3) Fix admin email update flow so login logic is not hardcoded to old email.
+4) Keep current-password re-auth checks for sensitive updates.
+
+Why seventh
+- Security-sensitive; must be done carefully after functional UX fixes.
+- Can affect admin access if shipped early with mistakes.
+
+How to verify
+1. Attempt login with invalid email format: must be blocked before submit.
+2. Use forgot-password with valid email: confirm success response.
+3. Change admin email in settings.
+4. Sign out and sign in with new admin email.
+5. Confirm old admin email can no longer authenticate as admin.
+Pass criteria
+- Recovery works.
+- Email validation enforced everywhere.
+- Admin account remains accessible after email change.
+
+====================================================================
+CHANGE SET 8 - Banner capacity increase
+====================================================================
+Scope
+1) Increase home banner allowed content by +500 characters.
+2) Keep UI readable and prevent overflow on mobile.
+
+Why last
+- Lowest urgency and independent of core flows.
+
+How to verify
+1. Paste long banner text exceeding old limit by ~500 chars.
+2. Save in admin dashboard.
+3. Open home page and confirm full/expected text behavior.
+4. Verify mobile layout does not break.
+Pass criteria
+- New length accepted and saved.
+- Home page remains readable and stable.
+
+====================================================================
+Final End-to-End Smoke Test (after all sets)
+====================================================================
+1. Home loads with updated button text and banner.
+2. Search -> item details -> map -> confirmation buttons all work.
+3. Item missing report opens camera and captures image.
+4. New location selection requires explicit confirmation.
+5. Analytics shows daily searches and daily confirmations.
+6. Forgot password and admin login/email update work.
+
+Rollback Guidance
+- If any change set fails verification, rollback only that set.
+- Do not continue to next set until current set passes.
+- Keep each set in a separate commit for clean rollback.

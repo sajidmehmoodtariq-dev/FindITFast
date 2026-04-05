@@ -2,24 +2,29 @@ import React, { useState, useEffect } from 'react';
 import { collection, query, where, Timestamp, getDocs } from 'firebase/firestore';
 import { db } from '../services/firebase';
 import type { Item } from '../types';
-import { stockConfirmationService } from '../services/stockConfirmationService';
+import { stockConfirmationService, type StockConfirmationResult } from '../services/stockConfirmationService';
 
 interface StockConfirmationButtonsProps {
     item: Item;
     userId: string | null;
     variant?: 'default' | 'map';
     title?: string;
+    onConfirmed?: (result: StockConfirmationResult) => void;
 }
 
 export const StockConfirmationButtons: React.FC<StockConfirmationButtonsProps> = ({
     item,
     userId,
     variant = 'default',
-    title = 'Update Stock Status'
+    title = 'Update Stock Status',
+    onConfirmed
 }) => {
     const [isDisabled, setIsDisabled] = useState(false);
     const [isLoading, setIsLoading] = useState(false);
     const [toastMessage, setToastMessage] = useState<string | null>(null);
+    const [reinforcementMessage, setReinforcementMessage] = useState<string | null>(null);
+    const [todayCountMessage, setTodayCountMessage] = useState<string | null>(null);
+    const [localStatusLabel, setLocalStatusLabel] = useState<string | null>(null);
 
     useEffect(() => {
         const checkRateLimit = async () => {
@@ -56,14 +61,29 @@ export const StockConfirmationButtons: React.FC<StockConfirmationButtonsProps> =
 
         setIsLoading(true);
         try {
-            await stockConfirmationService.submitConfirmation(item.id, item.storeId, userId, type);
-            setToastMessage("Thanks. Status updated just now.");
+            const result = await stockConfirmationService.submitConfirmation(item.id, item.storeId, userId, type);
+            setToastMessage('Thanks - stock updated');
+            setReinforcementMessage('You just helped other shoppers');
+            const statusLabel = result.type === 'GREEN'
+                ? 'In Stock'
+                : result.type === 'YELLOW'
+                    ? 'Low Stock'
+                    : 'Out of Stock';
+            setLocalStatusLabel(statusLabel);
+            if (result.todayConfirmationCount && result.todayConfirmationCount > 0) {
+                setTodayCountMessage(
+                    `${result.todayConfirmationCount} shopper${result.todayConfirmationCount === 1 ? '' : 's'} confirmed this today`
+                );
+            }
+            onConfirmed?.(result);
             setIsDisabled(true);
         } catch (error: any) {
             setToastMessage(error.message || "Failed to submit status.");
         } finally {
             setIsLoading(false);
             setTimeout(() => setToastMessage(null), 3000);
+            setTimeout(() => setReinforcementMessage(null), 5000);
+            setTimeout(() => setTodayCountMessage(null), 5000);
         }
     };
 
@@ -102,8 +122,17 @@ export const StockConfirmationButtons: React.FC<StockConfirmationButtonsProps> =
                 </button>
             </div>
 
+            {(reinforcementMessage || todayCountMessage) && (
+                <div className="rounded-md border border-green-200 bg-green-50 px-3 py-2 text-sm text-green-800">
+                    {localStatusLabel && <p className="font-semibold">Status now: {localStatusLabel}</p>}
+                    {localStatusLabel && <p className="text-green-700">Just confirmed</p>}
+                    {reinforcementMessage && <p className="font-medium">{reinforcementMessage}</p>}
+                    {todayCountMessage && <p className="text-green-700">{todayCountMessage}</p>}
+                </div>
+            )}
+
             {toastMessage && (
-                <div className="absolute -bottom-10 left-0 right-0 p-2 bg-gray-800 text-white text-xs text-center rounded-md animate-fade-in z-10 shadow-lg">
+                <div className="fixed bottom-5 left-1/2 -translate-x-1/2 w-[calc(100%-2rem)] max-w-sm p-3 bg-gray-900 text-white text-sm text-center rounded-lg animate-fade-in z-[70] shadow-xl pointer-events-none">
                     {toastMessage}
                 </div>
             )}

@@ -404,6 +404,35 @@ export const FloorplanItemViewPage: React.FC = () => {
                 userId={userId}
                 variant="map"
                 title=""
+                onConfirmed={(result) => {
+                  const inStockFromType = result.type === 'RED' ? false : true;
+
+                  setTargetItem((prev) => {
+                    if (!prev) return prev;
+                    return {
+                      ...prev,
+                      inStock: inStockFromType,
+                      lastConfirmedAt: result.lastConfirmedAt,
+                      weeklyGreenCount: result.weeklyGreenCount,
+                      weeklyYellowCount: result.weeklyYellowCount,
+                      recentRedCount24h: result.recentRedCount24h,
+                      statusOverride: result.statusOverride
+                    };
+                  });
+
+                  setAllItems((prev) => prev.map((item) => {
+                    if (item.id !== targetItem.id) return item;
+                    return {
+                      ...item,
+                      inStock: inStockFromType,
+                      lastConfirmedAt: result.lastConfirmedAt,
+                      weeklyGreenCount: result.weeklyGreenCount,
+                      weeklyYellowCount: result.weeklyYellowCount,
+                      recentRedCount24h: result.recentRedCount24h,
+                      statusOverride: result.statusOverride
+                    };
+                  }));
+                }}
               />
             </div>
           )}

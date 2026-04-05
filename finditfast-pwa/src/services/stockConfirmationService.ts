@@ -5,6 +5,16 @@ import type { Item, ItemStatusEvent } from '../types';
 const RATE_LIMIT_HOURS = 6;
 const MS_PER_HOUR = 60 * 60 * 1000;
 
+export interface StockConfirmationResult {
+    type: 'GREEN' | 'YELLOW' | 'RED';
+    lastConfirmedAt: Timestamp;
+    weeklyGreenCount: number;
+    weeklyYellowCount: number;
+    recentRedCount24h: number;
+    statusOverride: 'OUT_OF_STOCK' | null;
+    todayConfirmationCount: number | null;
+}
+
 export const stockConfirmationService = {
     /**
      * Submits a user stock confirmation and updates the Item trust score fields
@@ -14,7 +24,7 @@ export const stockConfirmationService = {
         storeId: string,
         userId: string,
         type: 'GREEN' | 'YELLOW' | 'RED'
-    ) {
+    ): Promise<StockConfirmationResult> {
         // 1. Check rate limit
         const sixHoursAgo = new Date(Date.now() - RATE_LIMIT_HOURS * MS_PER_HOUR);
         const eventsRef = collection(db, 'itemStatusEvents');
@@ -69,14 +79,43 @@ export const stockConfirmationService = {
             }
         }
 
+        const nowTimestamp = Timestamp.now();
+
         await updateDoc(itemRef, {
-            lastConfirmedAt: Timestamp.now(),
+            lastConfirmedAt: nowTimestamp,
             weeklyGreenCount,
             weeklyYellowCount,
             recentRedCount24h,
             statusOverride,
-            updatedAt: Timestamp.now()
+            updatedAt: nowTimestamp
         });
+
+        // Keep this optional signal index-safe by using a single-field query
+        // and filtering by date in memory.
+        let todayConfirmationCount: number | null = null;
+        try {
+            const itemEventsQuery = query(eventsRef, where('itemId', '==', itemId));
+            const itemEvents = await getDocs(itemEventsQuery);
+            const startOfDay = new Date();
+            startOfDay.setHours(0, 0, 0, 0);
+            todayConfirmationCount = itemEvents.docs.reduce((count, eventDoc) => {
+                const createdAt = eventDoc.data().createdAt as Timestamp | undefined;
+                if (!createdAt) return count;
+                return createdAt.toDate() >= startOfDay ? count + 1 : count;
+            }, 0);
+        } catch (error) {
+            console.warn('Unable to fetch today confirmation count:', error);
+        }
+
+        return {
+            type,
+            lastConfirmedAt: nowTimestamp,
+            weeklyGreenCount,
+            weeklyYellowCount,
+            recentRedCount24h,
+            statusOverride,
+            todayConfirmationCount
+        };
     },
 
     /**
@@ -145,12 +184,18 @@ export const stockConfirmationService = {
         if (item.statusOverride === 'OUT_OF_STOCK') {
             sublabelA = 'Reported unavailable today';
         } else if (item.lastConfirmedAt) {
-            const days = Math.floor((Date.now() - item.lastConfirmedAt.toMillis()) / 86400000);
-            sublabelA = `Last confirmed ${days === 0 ? 'today' : days === 1 ? '1 day ago' : days + ' days ago'}`;
+            const millisSinceConfirmation = Date.now() - item.lastConfirmedAt.toMillis();
+            if (millisSinceConfirmation <= 120000) {
+                sublabelA = 'Just confirmed';
+            } else {
+                const days = Math.floor(millisSinceConfirmation / 86400000);
+                sublabelA = `Last confirmed ${days === 0 ? 'today' : days === 1 ? '1 day ago' : days + ' days ago'}`;
+            }
         }
 
         let sublabelB = '';
-        if (weeklyTotal > 0) {
+        const hasRecentConfirmation = !!item.lastConfirmedAt && (Date.now() - item.lastConfirmedAt.toMillis()) <= 7 * 86400000;
+        if (weeklyTotal > 0 && hasRecentConfirmation) {
             sublabelB = `Confirmed by ${weeklyTotal} shopper${weeklyTotal === 1 ? '' : 's'} this week`;
         }
 
