@@ -114,10 +114,10 @@ export const ItemDetailsPage: React.FC = () => {
       const diffTime = Math.abs(now.getTime() - verifiedDate.getTime());
       const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
 
-      if (diffDays === 1) return 'Verified 1 day ago';
-      return `Verified ${diffDays} days ago`;
+      if (diffDays === 1) return 'Last confirmed 1 day ago';
+      return `Last confirmed ${diffDays} days ago`;
     } catch {
-      return 'Verified';
+      return 'Last confirmed';
     }
   };
 
@@ -272,6 +272,7 @@ export const ItemDetailsPage: React.FC = () => {
 
               {/* Stock Trust System */}
               <div className="mt-4 pt-4 border-t border-gray-100">
+                <h3 className="text-sm font-semibold text-gray-900 mb-3">Did you find this item</h3>
                 <StockTrustBadge item={item} />
                 <StockConfirmationButtons item={item} userId={userId} />
               </div>

@@ -151,7 +151,7 @@ export const ItemInfo: React.FC<ItemInfoProps> = ({ item, store, className = '' 
                 </span>
               </div>
               <span className="text-sm text-gray-500">
-                {daysSinceVerification === 0 
+                Last confirmed {daysSinceVerification === 0 
                   ? 'today' 
                   : daysSinceVerification === 1 
                     ? '1 day ago'

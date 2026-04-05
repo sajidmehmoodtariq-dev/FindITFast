@@ -46,10 +46,10 @@ export const ResultCard: React.FC<ResultCardProps> = ({ result, onClick }) => {
       const diffTime = Math.abs(now.getTime() - verifiedDate.getTime());
       const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
 
-      if (diffDays === 1) return 'Verified 1 day ago';
-      return `Verified ${diffDays} days ago`;
+      if (diffDays === 1) return 'Last confirmed 1 day ago';
+      return `Last confirmed ${diffDays} days ago`;
     } catch {
-      return 'Verified';
+      return 'Last confirmed';
     }
   };
 
