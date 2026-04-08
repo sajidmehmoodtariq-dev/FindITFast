@@ -5,11 +5,26 @@ service cloud.firestore {
     function isAuthenticated() {
       return request.auth != null;
     }
+
+    function isConfiguredAdminEmail() {
+      return exists(/databases/$(database)/documents/appConfig/public) &&
+        (
+          (
+            get(/databases/$(database)/documents/appConfig/public).data.adminEmail is string &&
+            request.auth.token.email == get(/databases/$(database)/documents/appConfig/public).data.adminEmail
+          ) ||
+          (
+            get(/databases/$(database)/documents/appConfig/public).data.adminEmails is list &&
+            get(/databases/$(database)/documents/appConfig/public).data.adminEmails.hasAny([request.auth.token.email])
+          ) ||
+          request.auth.token.email == 'admin@finditfast.com'
+        );
+    }
     
     function isAdmin() {
       return isAuthenticated() && 
-             (request.auth.token.email == 'admin@finditfast.com' ||
-              exists(/databases/$(database)/documents/admins/$(request.auth.uid)));
+             (exists(/databases/$(database)/documents/admins/$(request.auth.uid)) ||
+              isConfiguredAdminEmail());
     }
     
     function isOwner(resource) {

@@ -29,7 +29,7 @@ export const AdminAuth: React.FC = () => {
     try {
       const credential = await signInWithEmailAndPassword(auth, normalizedEmail, password);
       
-      const isAdmin = await AdminService.isAdminUid(credential.user.uid);
+      const isAdmin = await AdminService.isAdminUid(credential.user.uid, credential.user.email || normalizedEmail);
       if (isAdmin) {
         navigate('/admin');
       } else {

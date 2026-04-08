@@ -4,7 +4,7 @@
  */
 
 import { initializeApp } from 'firebase/app';
-import { getAuth, createUserWithEmailAndPassword } from 'firebase/auth';
+import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword } from 'firebase/auth';
 import { getFirestore, doc, setDoc, serverTimestamp } from 'firebase/firestore';
 
 const firebaseConfig = {
@@ -24,13 +24,26 @@ async function createAppAdmin() {
     const auth = getAuth(app);
     const db = getFirestore(app);
     
-    const adminEmail = 'admin@finditfast.com';
-    const adminPassword = 'AdminPassword123!';
+    const adminEmail = (process.env.ADMIN_EMAIL || 'admin@finditfast.com').trim().toLowerCase();
+    const adminPassword = process.env.ADMIN_PASSWORD || 'AdminPassword123!';
+    const adminEmails = (process.env.ADMIN_EMAILS || adminEmail)
+      .split(',')
+      .map(email => email.trim().toLowerCase())
+      .filter(Boolean);
     
-    console.log('🔐 Creating Firebase Auth account...');
-    
-    // Create Firebase Auth user
-    const userCredential = await createUserWithEmailAndPassword(auth, adminEmail, adminPassword);
+    console.log('🔐 Creating or loading Firebase Auth account...');
+
+    let userCredential;
+    try {
+      userCredential = await createUserWithEmailAndPassword(auth, adminEmail, adminPassword);
+    } catch (createError) {
+      if (createError.code === 'auth/email-already-in-use') {
+        userCredential = await signInWithEmailAndPassword(auth, adminEmail, adminPassword);
+      } else {
+        throw createError;
+      }
+    }
+
     const user = userCredential.user;
     
     console.log('✅ Firebase Auth account created:', user.uid);
@@ -51,8 +64,15 @@ async function createAppAdmin() {
     };
     
     await setDoc(doc(db, 'admins', user.uid), adminProfile);
+    await setDoc(doc(db, 'appConfig', 'public'), {
+      adminEmail,
+      adminEmails,
+      updatedAt: serverTimestamp(),
+      updatedBy: user.uid
+    }, { merge: true });
     
     console.log('✅ Admin profile created in Firestore');
+    console.log('✅ Admin email synced to appConfig/public');
     
     console.log('\n🎉 App Admin Account Created Successfully!');
     console.log('==================================');
@@ -71,7 +91,7 @@ async function createAppAdmin() {
   } catch (error) {
     if (error.code === 'auth/email-already-in-use') {
       console.log('✅ Admin account already exists!');
-      console.log('🔑 Login with: admin@finditfast.com / AdminPassword123!');
+      console.log(`🔑 Login with: ${adminEmail} / ${adminPassword}`);
     } else {
       console.error('❌ Error creating admin account:', error.message);
     }

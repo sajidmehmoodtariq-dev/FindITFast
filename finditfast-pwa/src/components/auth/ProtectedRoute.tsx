@@ -32,7 +32,7 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
       }
 
       setCheckingAdmin(true);
-      const adminAccess = await AdminService.isAdminUid(user.uid);
+      const adminAccess = await AdminService.isAdminUid(user.uid, user.email || undefined);
       if (active) {
         setIsAdmin(adminAccess);
         setCheckingAdmin(false);

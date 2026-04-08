@@ -102,7 +102,7 @@ export const OwnerAuth: React.FC<OwnerAuthProps> = ({ onAuthSuccess, onAuthError
     try {
       if (isLogin) {
         const credential = await AuthService.signInOwner(formData.email, formData.password);
-        const isAdmin = await AdminService.isAdminUid(credential.user.uid);
+        const isAdmin = await AdminService.isAdminUid(credential.user.uid, credential.user.email || formData.email.trim().toLowerCase());
 
         if (isAdmin) {
           await AuthService.signOutOwner();

@@ -442,11 +442,31 @@ export const AdminDashboard: React.FC = () => {
     if (!user || !newEmail || !user.email) return;
 
     const normalizedEmail = newEmail.trim().toLowerCase();
+    const currentPassword = emailCurrentPassword.trim();
+
     if (!AuthService.isValidEmail(normalizedEmail)) {
       setUpdateStatus({
         type: 'email',
         success: false,
         message: 'Please enter a valid email address.'
+      });
+      return;
+    }
+
+    if (normalizedEmail === user.email.trim().toLowerCase()) {
+      setUpdateStatus({
+        type: 'email',
+        success: false,
+        message: 'New email must be different from your current email.'
+      });
+      return;
+    }
+
+    if (!currentPassword) {
+      setUpdateStatus({
+        type: 'email',
+        success: false,
+        message: 'Please enter your current password to continue.'
       });
       return;
     }
@@ -457,7 +477,7 @@ export const AdminDashboard: React.FC = () => {
       
       // Firebase requires recent authentication before updating email
       // Re-authenticate with current password
-      const credential = EmailAuthProvider.credential(user.email, emailCurrentPassword);
+      const credential = EmailAuthProvider.credential(user.email, currentPassword);
       await reauthenticateWithCredential(user, credential);
       
       // Use verifyBeforeUpdateEmail instead of updateEmail
@@ -470,21 +490,23 @@ export const AdminDashboard: React.FC = () => {
       setUpdateStatus({
         type: 'email',
         success: true,
-        message: 'Verification email sent to your new address. Please check your email to complete the update.'
+        message: 'Verification email sent to your new address. Click that link to finish the change. Until then, keep logging in with your current email.'
       });
       
     } catch (error: any) {
       console.error('Error updating email:', error);
       
       let errorMessage = 'Failed to update email. Please try again.';
-      if (error.code === 'auth/wrong-password') {
-        errorMessage = 'Incorrect password. Please try again.';
+      if (error.code === 'auth/wrong-password' || error.code === 'auth/invalid-credential' || error.code === 'auth/user-mismatch') {
+        errorMessage = 'Current password is incorrect. Please try again.';
       } else if (error.code === 'auth/email-already-in-use') {
         errorMessage = 'This email is already in use by another account.';
       } else if (error.code === 'auth/requires-recent-login') {
         errorMessage = 'Please sign out and sign in again before updating your email.';
       } else if (error.code === 'auth/operation-not-allowed') {
         errorMessage = 'Email verification required. Please check your email to complete the verification process.';
+      } else if (error.code === 'auth/invalid-email') {
+        errorMessage = 'The new email format is invalid.';
       }
       
       setUpdateStatus({
@@ -883,7 +905,7 @@ export const AdminDashboard: React.FC = () => {
       }
 
       setCheckingAdminAccess(true);
-      const hasAccess = await AdminService.isAdminUid(user.uid);
+      const hasAccess = await AdminService.isAdminUid(user.uid, user.email || undefined);
       if (active) {
         setIsAppAdmin(hasAccess);
         setCheckingAdminAccess(false);

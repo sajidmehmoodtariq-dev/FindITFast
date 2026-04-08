@@ -5,11 +5,26 @@ service firebase.storage {
     function isAuthenticated() {
       return request.auth != null;
     }
+
+    function isConfiguredAdminEmail() {
+      return exists(/databases/(default)/documents/appConfig/public) &&
+        (
+          (
+            get(/databases/(default)/documents/appConfig/public).data.adminEmail is string &&
+            request.auth.token.email == get(/databases/(default)/documents/appConfig/public).data.adminEmail
+          ) ||
+          (
+            get(/databases/(default)/documents/appConfig/public).data.adminEmails is list &&
+            get(/databases/(default)/documents/appConfig/public).data.adminEmails.hasAny([request.auth.token.email])
+          ) ||
+          request.auth.token.email == 'admin@finditfast.com'
+        );
+    }
     
     function isAdmin() {
       return isAuthenticated() && 
-             (request.auth.token.email == 'admin@finditfast.com' ||
-              exists(/databases/(default)/documents/admins/$(request.auth.uid)));
+             (exists(/databases/(default)/documents/admins/$(request.auth.uid)) ||
+              isConfiguredAdminEmail());
     }
     
     function isStoreOwner() {
