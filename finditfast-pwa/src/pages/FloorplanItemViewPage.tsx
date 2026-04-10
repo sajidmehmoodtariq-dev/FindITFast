@@ -143,18 +143,9 @@ export const FloorplanItemViewPage: React.FC = () => {
 
   const handleImageLoad = () => {
     setImageError(false);
-    // Center the floorplan initially
-    if (floorplanRef.current && imageRef.current) {
-      const containerRect = floorplanRef.current.getBoundingClientRect();
-      const imageRect = imageRef.current.getBoundingClientRect();
-      
-      if (containerRect.width > imageRect.width && containerRect.height > imageRect.height) {
-        // Image fits in container, center it
-        const centerX = (containerRect.width - imageRect.width) / 2;
-        const centerY = (containerRect.height - imageRect.height) / 2;
-        setPosition({ x: centerX, y: centerY });
-      }
-    }
+    // Keep map anchored to top-left on mobile to avoid large empty space.
+    setPosition({ x: 0, y: 0 });
+    setScale(1);
   };
 
   const handleImageError = () => {
@@ -258,7 +249,7 @@ export const FloorplanItemViewPage: React.FC = () => {
         <div className="min-h-full bg-gray-50 flex flex-col">
           {/* Target Item Info Banner - Minimized */}
           {targetItem && (
-            <div className="absolute top-0 left-0 right-0 z-20 bg-blue-600 text-white px-4 py-2 shadow-lg">
+            <div className="z-20 bg-blue-600 text-white px-4 py-2 shadow-lg mb-3">
               <div className="flex items-center justify-between">
                 <div className="flex items-center space-x-2">
                   <span className="text-xs opacity-90">Looking for:</span>
@@ -276,8 +267,12 @@ export const FloorplanItemViewPage: React.FC = () => {
           {/* Floorplan Container */}
           <div 
             ref={floorplanRef}
-            className={`relative w-full overflow-hidden ${targetItem ? 'pt-12' : ''}`}
-            style={{ minHeight: targetItem ? 'calc(100vh - 460px)' : 'calc(100vh - 220px)' }}
+            className="relative w-full overflow-hidden rounded-xl bg-gray-100"
+            style={{
+              height: targetItem ? '44vh' : '62vh',
+              minHeight: targetItem ? '260px' : '320px',
+              maxHeight: targetItem ? '460px' : '620px'
+            }}
             onMouseDown={handleMouseDown}
             onMouseMove={handleMouseMove}
             onMouseUp={handleMouseUp}
@@ -287,7 +282,7 @@ export const FloorplanItemViewPage: React.FC = () => {
             {/* Floorplan Image */}
             {!imageError ? (
               <div
-                className="relative w-full h-full flex items-start justify-center pt-2"
+                className="relative w-full h-full flex items-start justify-center"
                 style={{
                   cursor: scale > 1 ? (isDragging ? 'grabbing' : 'grab') : 'default'
                 }}
@@ -296,7 +291,7 @@ export const FloorplanItemViewPage: React.FC = () => {
                 <div 
                   className="relative w-full h-full"
                   style={{
-                    transform: `scale(${scale}) translate(${position.x / scale}px, ${position.y / scale}px)`,
+                    transform: `translate(${position.x}px, ${position.y}px) scale(${scale})`,
                     transformOrigin: 'center'
                   }}
                 >
@@ -304,7 +299,7 @@ export const FloorplanItemViewPage: React.FC = () => {
                     ref={imageRef}
                     src={floorplanImageUrl}
                     alt={`Floorplan for ${store.name}`}
-                    className="w-full max-w-full max-h-[calc(100vh-320px)] object-contain object-top transition-transform duration-200"
+                    className="w-full h-full object-contain object-top transition-transform duration-200"
                     onLoad={handleImageLoad}
                     onError={handleImageError}
                     draggable={false}

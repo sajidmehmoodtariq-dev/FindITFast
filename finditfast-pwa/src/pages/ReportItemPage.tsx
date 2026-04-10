@@ -22,6 +22,11 @@ interface CameraState {
 }
 
 const CAMERA_START_TIMEOUT_MS = 8000;
+const CAMERA_PREVIEW_TIMEOUT_MS = 3500;
+
+const isLikelyMobileDevice = () => {
+  return /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent) || navigator.maxTouchPoints > 1;
+};
 
 export const ReportItemPage: React.FC = () => {
   const { itemId, storeId } = useParams<{ itemId: string; storeId: string }>();
@@ -80,9 +85,7 @@ export const ReportItemPage: React.FC = () => {
   // Check camera support
   useEffect(() => {
     const checkCameraSupport = () => {
-      const isMobileDevice =
-        /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent) ||
-        navigator.maxTouchPoints > 1;
+      const isMobileDevice = isLikelyMobileDevice();
       const canUseGetUserMedia = !!(
         navigator.mediaDevices &&
         navigator.mediaDevices.getUserMedia
@@ -102,6 +105,102 @@ export const ReportItemPage: React.FC = () => {
 
   useEffect(() => {
     streamRef.current = camera.stream;
+  }, [camera.stream]);
+
+  // Attach stream after camera panel renders so videoRef is guaranteed to exist.
+  useEffect(() => {
+    if (!camera.isActive || !camera.stream || !videoRef.current) {
+      return;
+    }
+
+    const videoElement = videoRef.current;
+    const activeStream = camera.stream;
+    videoElement.srcObject = activeStream;
+    videoElement.autoplay = true;
+    videoElement.muted = true;
+    videoElement.playsInline = true;
+    videoElement.setAttribute('playsinline', 'true');
+    videoElement.setAttribute('webkit-playsinline', 'true');
+
+    const previewWatchdog = window.setTimeout(() => {
+      const hasFrame = videoElement.videoWidth > 0 && videoElement.videoHeight > 0;
+      if (!hasFrame) {
+        activeStream.getTracks().forEach(track => track.stop());
+        const shouldAutoOpenFallbackPicker = isLikelyMobileDevice() && !!mobileCameraInputRef.current;
+
+        setCamera(prev => {
+          if (prev.stream !== activeStream) {
+            return prev;
+          }
+
+          return {
+            ...prev,
+            isActive: false,
+            stream: null,
+            error: 'Camera opened but no preview was received. Tap Retry. If it persists on mobile, use the browser camera picker.'
+          };
+        });
+        setCurrentCapture(null);
+
+        if (shouldAutoOpenFallbackPicker) {
+          mobileCameraInputRef.current?.click();
+        }
+      }
+    }, CAMERA_PREVIEW_TIMEOUT_MS);
+
+    const playWhenReady = async () => {
+      try {
+        await videoElement.play();
+      } catch (playError) {
+        console.warn('Video playback did not start immediately:', playError);
+      }
+    };
+
+    if (videoElement.readyState >= 1) {
+      void playWhenReady();
+      return () => {
+        window.clearTimeout(previewWatchdog);
+      };
+    }
+
+    const onLoadedMetadata = () => {
+      void playWhenReady();
+    };
+
+    videoElement.addEventListener('loadedmetadata', onLoadedMetadata, { once: true });
+
+    return () => {
+      window.clearTimeout(previewWatchdog);
+      videoElement.removeEventListener('loadedmetadata', onLoadedMetadata);
+    };
+  }, [camera.isActive, camera.stream]);
+
+  // Detect unexpected stream shutdowns (common on aggressive mobile browsers).
+  useEffect(() => {
+    if (!camera.stream) {
+      return;
+    }
+
+    const videoTrack = camera.stream.getVideoTracks()[0];
+    if (!videoTrack) {
+      return;
+    }
+
+    const handleTrackEnded = () => {
+      setCamera(prev => ({
+        ...prev,
+        isActive: false,
+        stream: null,
+        error: 'Camera closed unexpectedly. Please tap Use Camera again.'
+      }));
+      setCurrentCapture(null);
+    };
+
+    videoTrack.addEventListener('ended', handleTrackEnded);
+
+    return () => {
+      videoTrack.removeEventListener('ended', handleTrackEnded);
+    };
   }, [camera.stream]);
 
   const checkCameraPermission = useCallback(async (): Promise<'granted' | 'denied' | 'prompt' | 'unknown'> => {
@@ -213,6 +312,12 @@ export const ReportItemPage: React.FC = () => {
 
     try {
       setStartingCamera(true);
+
+      if (streamRef.current) {
+        streamRef.current.getTracks().forEach(track => track.stop());
+        streamRef.current = null;
+      }
+
       if (typeof navigator.mediaDevices?.getUserMedia !== 'function') {
         // Mobile fallback: still camera-only via capture input.
         if (camera.hasCaptureFallback && mobileCameraInputRef.current) {
@@ -254,13 +359,21 @@ export const ReportItemPage: React.FC = () => {
         ]);
       };
       
-      const preferredConstraints: MediaStreamConstraints = {
-        video: {
-          facingMode: 'environment', // Use back camera on mobile
-          width: { ideal: 1920 },
-          height: { ideal: 1080 }
-        }
-      };
+      const isMobileDevice = isLikelyMobileDevice();
+      const preferredConstraints: MediaStreamConstraints = isMobileDevice
+        ? {
+            video: {
+              facingMode: { ideal: 'environment' }, // Prefer back camera on mobile.
+              width: { ideal: 1920 },
+              height: { ideal: 1080 }
+            }
+          }
+        : {
+            video: {
+              width: { ideal: 1280 },
+              height: { ideal: 720 }
+            }
+          };
 
       let stream: MediaStream;
       try {
@@ -269,29 +382,11 @@ export const ReportItemPage: React.FC = () => {
         // Desktop/laptop fallback where facingMode constraint can fail.
         stream = await getUserMediaWithTimeout({ video: true });
       }
-      
-      const videoElement = videoRef.current;
-      if (videoElement) {
-        videoElement.srcObject = stream;
-        videoElement.muted = true;
-        videoElement.playsInline = true;
 
-        // Ensure playback starts once metadata is ready on mobile browsers.
-        const playWhenReady = async () => {
-          try {
-            await videoElement.play();
-          } catch (playError) {
-            console.warn('Video playback did not start immediately:', playError);
-          }
-        };
-
-        if (videoElement.readyState >= 1) {
-          void playWhenReady();
-        } else {
-          videoElement.onloadedmetadata = () => {
-            void playWhenReady();
-          };
-        }
+      const videoTrack = stream.getVideoTracks()[0];
+      if (!videoTrack || videoTrack.readyState !== 'live') {
+        stream.getTracks().forEach(track => track.stop());
+        throw new Error('No live video track from camera');
       }
 
       setCamera(prev => ({
@@ -344,9 +439,11 @@ export const ReportItemPage: React.FC = () => {
     setCamera(prev => ({
       ...prev,
       isActive: false,
-      stream: null
+      stream: null,
+      error: null
     }));
     setCurrentCapture(null);
+    setStartingCamera(false);
   }, []);
 
   // Capture photo
@@ -411,6 +508,20 @@ export const ReportItemPage: React.FC = () => {
       error: 'Camera is not available in this browser. Please try Safari or Chrome on a device with a camera.'
     }));
   }, [startCamera]);
+
+  const handleOpenPhotoPicker = useCallback(() => {
+    setCamera(prev => ({ ...prev, error: null }));
+
+    if (mobileCameraInputRef.current) {
+      mobileCameraInputRef.current.click();
+      return;
+    }
+
+    setCamera(prev => ({
+      ...prev,
+      error: 'Photo picker is not available in this browser. Please try another browser.'
+    }));
+  }, []);
 
   const handleRetryCamera = useCallback(async () => {
     const permission = await checkCameraPermission();
@@ -536,7 +647,7 @@ export const ReportItemPage: React.FC = () => {
                   playsInline
                   muted
                   className="w-full rounded-lg"
-                  style={{ maxHeight: '400px' }}
+                  style={{ maxHeight: '400px', minHeight: '220px', backgroundColor: '#000', objectFit: 'cover' }}
                 />
               </div>
               
@@ -597,6 +708,13 @@ export const ReportItemPage: React.FC = () => {
                     className="bg-blue-500 text-white px-6 py-3 rounded-lg font-medium hover:bg-blue-600 transition-colors disabled:opacity-50"
                   >
                     📷 Use Camera
+                  </button>
+                  <button
+                    onClick={handleOpenPhotoPicker}
+                    disabled={processingImage || startingCamera}
+                    className="bg-white border border-gray-300 text-gray-700 px-6 py-3 rounded-lg font-medium hover:bg-gray-50 transition-colors disabled:opacity-50"
+                  >
+                    🖼️ Use Camera/Photo Picker (Fallback)
                   </button>
                 </>
               )}
