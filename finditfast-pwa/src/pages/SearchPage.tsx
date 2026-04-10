@@ -1,6 +1,4 @@
 import React, { useState, useCallback, useEffect } from 'react';
-import { doc, onSnapshot } from 'firebase/firestore';
-import { db } from '../services/firebase';
 import { useNavigate } from 'react-router-dom';
 import { SearchResults } from '../components/search';
 import { MobileLayout, MobileContent } from '../components/common/MobileLayout';
@@ -30,8 +28,6 @@ export const SearchPage: React.FC = () => {
   const navigate = useNavigate();
   
   const [searchInput, setSearchInput] = useState('');
-  const defaultBannerText = 'Welcome to FindItFast! Browse our latest deals and featured stores. Check back often for new updates and announcements.';
-  const [bannerText, setBannerText] = useState<string>(defaultBannerText);
   const [searchState, setSearchState] = useState<SearchState>({
     query: '',
     results: [],
@@ -104,36 +100,6 @@ export const SearchPage: React.FC = () => {
 
   // Location services removed - search works without location data
 
-  // Subscribe to global banner text from Firestore
-  useEffect(() => {
-    const configRef = doc(db, 'appConfig', 'public');
-    const unsubscribe = onSnapshot(
-      configRef,
-      (snapshot) => {
-        try {
-          if (snapshot.exists()) {
-            const data = snapshot.data();
-            if (data && typeof data.homeBannerText === 'string' && data.homeBannerText.trim()) {
-              setBannerText(data.homeBannerText.trim());
-            } else {
-              setBannerText(defaultBannerText);
-            }
-          } else {
-            setBannerText(defaultBannerText);
-          }
-        } catch (error) {
-          console.error('Error loading home banner config:', error);
-          setBannerText(defaultBannerText);
-        }
-      },
-      (error) => {
-        console.error('Error in home banner listener:', error);
-        setBannerText(defaultBannerText);
-      }
-    );
-    return () => unsubscribe();
-  }, []);
-
   const handleInputChange = useCallback((value: string) => {
     setSearchInput(value);
   }, []);
@@ -195,17 +161,6 @@ export const SearchPage: React.FC = () => {
               />
             </div>
           </div>
-
-          {/* Welcome Banner - Hidden during search */}
-          {!searchInput.trim() && (
-            <div className="px-4 mb-6">
-              <div className="bg-gradient-to-r from-blue-100 to-purple-100 rounded-2xl p-4 border border-blue-200">
-                <p className="text-sm text-blue-800 leading-relaxed font-medium whitespace-pre-wrap break-words max-h-56 overflow-y-auto pr-1">
-                  {bannerText}
-                </p>
-              </div>
-            </div>
-          )}
 
           {/* Admin Panel section removed - accessible via gear icon in navigation bar */}
 

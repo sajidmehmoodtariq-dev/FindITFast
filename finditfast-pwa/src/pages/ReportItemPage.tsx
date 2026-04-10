@@ -55,6 +55,7 @@ export const ReportItemPage: React.FC = () => {
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const mobileCameraInputRef = useRef<HTMLInputElement>(null);
+  const streamRef = useRef<MediaStream | null>(null);
   
   const [currentCapture, setCurrentCapture] = useState<'item' | 'location' | null>(null);
 
@@ -83,7 +84,6 @@ export const ReportItemPage: React.FC = () => {
         /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent) ||
         navigator.maxTouchPoints > 1;
       const canUseGetUserMedia = !!(
-        window.isSecureContext &&
         navigator.mediaDevices &&
         navigator.mediaDevices.getUserMedia
       );
@@ -99,6 +99,10 @@ export const ReportItemPage: React.FC = () => {
 
     checkCameraSupport();
   }, []);
+
+  useEffect(() => {
+    streamRef.current = camera.stream;
+  }, [camera.stream]);
 
   const checkCameraPermission = useCallback(async (): Promise<'granted' | 'denied' | 'prompt' | 'unknown'> => {
     try {
@@ -209,7 +213,7 @@ export const ReportItemPage: React.FC = () => {
 
     try {
       setStartingCamera(true);
-      if (!camera.canUseGetUserMedia) {
+      if (typeof navigator.mediaDevices?.getUserMedia !== 'function') {
         // Mobile fallback: still camera-only via capture input.
         if (camera.hasCaptureFallback && mobileCameraInputRef.current) {
           setCamera(prev => ({ ...prev, error: null, isActive: false }));
@@ -266,12 +270,28 @@ export const ReportItemPage: React.FC = () => {
         stream = await getUserMediaWithTimeout({ video: true });
       }
       
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream;
-        // Don't block UI on play() because some browsers keep this pending.
-        void videoRef.current.play().catch((playError) => {
-          console.warn('Video playback did not start immediately:', playError);
-        });
+      const videoElement = videoRef.current;
+      if (videoElement) {
+        videoElement.srcObject = stream;
+        videoElement.muted = true;
+        videoElement.playsInline = true;
+
+        // Ensure playback starts once metadata is ready on mobile browsers.
+        const playWhenReady = async () => {
+          try {
+            await videoElement.play();
+          } catch (playError) {
+            console.warn('Video playback did not start immediately:', playError);
+          }
+        };
+
+        if (videoElement.readyState >= 1) {
+          void playWhenReady();
+        } else {
+          videoElement.onloadedmetadata = () => {
+            void playWhenReady();
+          };
+        }
       }
 
       setCamera(prev => ({
@@ -306,13 +326,20 @@ export const ReportItemPage: React.FC = () => {
     } finally {
       setStartingCamera(false);
     }
-  }, [camera.isSupported, camera.canUseGetUserMedia, camera.hasCaptureFallback, checkCameraPermission]);
+  }, [camera.isSupported, camera.hasCaptureFallback, checkCameraPermission]);
 
   // Stop camera
   const stopCamera = useCallback(() => {
-    if (camera.stream) {
-      camera.stream.getTracks().forEach(track => track.stop());
+    const activeStream = streamRef.current;
+    if (activeStream) {
+      activeStream.getTracks().forEach(track => track.stop());
     }
+
+    if (videoRef.current) {
+      videoRef.current.srcObject = null;
+    }
+
+    streamRef.current = null;
     
     setCamera(prev => ({
       ...prev,
@@ -320,7 +347,7 @@ export const ReportItemPage: React.FC = () => {
       stream: null
     }));
     setCurrentCapture(null);
-  }, [camera.stream]);
+  }, []);
 
   // Capture photo
   const capturePhoto = useCallback(() => {
@@ -367,7 +394,7 @@ export const ReportItemPage: React.FC = () => {
 
   const handleUseCameraClick = useCallback(() => {
     setCamera(prev => ({ ...prev, error: null }));
-    if (camera.canUseGetUserMedia) {
+    if (typeof navigator.mediaDevices?.getUserMedia === 'function') {
       startCamera('item');
       return;
     }
@@ -383,7 +410,7 @@ export const ReportItemPage: React.FC = () => {
       ...prev,
       error: 'Camera is not available in this browser. Please try Safari or Chrome on a device with a camera.'
     }));
-  }, [camera.canUseGetUserMedia, startCamera]);
+  }, [startCamera]);
 
   const handleRetryCamera = useCallback(async () => {
     const permission = await checkCameraPermission();
@@ -438,16 +465,21 @@ export const ReportItemPage: React.FC = () => {
     navigate('/');
   }, [navigate]);
 
-  // Cleanup
+  // Cleanup camera only on unmount
   useEffect(() => {
     return () => {
       stopCamera();
-      // Cleanup preview URLs
+    };
+  }, [stopCamera]);
+
+  // Cleanup preview URLs on change/unmount
+  useEffect(() => {
+    return () => {
       if (reportData.itemImagePreview) {
         URL.revokeObjectURL(reportData.itemImagePreview);
       }
     };
-  }, [stopCamera, reportData.itemImagePreview]);
+  }, [reportData.itemImagePreview]);
 
   if (loading) {
     return (
@@ -502,6 +534,7 @@ export const ReportItemPage: React.FC = () => {
                   ref={videoRef}
                   autoPlay
                   playsInline
+                  muted
                   className="w-full rounded-lg"
                   style={{ maxHeight: '400px' }}
                 />

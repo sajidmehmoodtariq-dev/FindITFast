@@ -1,5 +1,6 @@
 import { collection, addDoc, query, where, getDocs, updateDoc, doc, Timestamp, getDoc } from 'firebase/firestore';
 import { db } from './firebase';
+import { trackSearch } from './analyticsService';
 import type { Item, ItemStatusEvent } from '../types';
 
 const RATE_LIMIT_HOURS = 6;
@@ -97,6 +98,20 @@ export const stockConfirmationService = {
             statusOverride,
             updatedAt: nowTimestamp
         });
+
+        // Count confirmation-driven search intent using the same 10-minute dedupe window.
+        void trackSearch(
+            {
+                userId,
+                storeId,
+                searchQuery: item.name || itemId,
+                resultsCount: 1
+            },
+            {
+                dedupeWindowMs: 10 * 60 * 1000,
+                source: 'confirmation'
+            }
+        );
 
         // Keep this optional signal index-safe by using a single-field query
         // and filtering by date in memory.

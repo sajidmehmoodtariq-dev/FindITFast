@@ -2,112 +2,113 @@ import { ItemService, StoreService } from './firestoreService';
 import { trackSearch } from './analyticsService';
 // Import types are used in JSDoc comments and type annotations
 import type { SearchResult } from '../types/search';
+import type { Item, Store } from '../types';
+
+type RankedSearchResult = SearchResult & {
+  relevanceScore: number;
+};
+
+type CacheEntry<T> = {
+  version: number;
+  timestamp: number;
+  data: T;
+};
+
+type TimestampLike = {
+  seconds: number;
+  nanoseconds: number;
+  toDate: () => Date;
+  toMillis: () => number;
+};
 
 export class SearchService {
+  private static readonly CACHE_VERSION = 1;
+  private static readonly CACHE_TTL_MS = 5 * 60 * 1000;
+  private static readonly RESULT_CACHE_TTL_MS = 2 * 60 * 1000;
+  private static readonly MAX_RESULTS = 20;
+
+  private static readonly ITEMS_CACHE_KEY = 'finditfast_search_items_v1';
+  private static readonly STORES_CACHE_KEY = 'finditfast_search_stores_v1';
+  private static readonly RESULT_CACHE_KEY = 'finditfast_search_results_v1';
+
+  private static readonly storagePriority: Array<'sessionStorage' | 'localStorage'> = [
+    'sessionStorage',
+    'localStorage'
+  ];
 
   /**
    * Search for items across all stores
    */
   static async searchItems(query: string, userLocation?: { latitude: number; longitude: number }): Promise<SearchResult[]> {
-    console.log('🔍 [SEARCH SERVICE DEBUG] Starting search for:', query);
-    
-    if (!query.trim()) {
-      console.log('❌ [SEARCH SERVICE DEBUG] Empty query, returning empty results');
+    const normalizedQuery = this.normalizeQuery(query);
+
+    if (!normalizedQuery) {
       return [];
     }
 
     try {
-      // Search for items using the existing search method
-      console.log('📋 [SEARCH SERVICE DEBUG] Calling ItemService.search...');
-      const items = await ItemService.search(query.toLowerCase());
-      console.log('📋 [SEARCH SERVICE DEBUG] Items found by ItemService:', items.length);
-      
-      // Get all approved stores from storeRequests and transform to Store format
-      console.log('🏪 [SEARCH SERVICE DEBUG] Getting approved stores...');
-      const storeRequests = await StoreService.getAll();
-      console.log('🏪 [SEARCH SERVICE DEBUG] Store requests found:', storeRequests.length);
-      
-      // Transform storeRequests to Store format and create lookup map
-      const storeMap = new Map();
-      storeRequests.forEach((storeRequest: any) => {
-        const store = {
-          id: storeRequest.id,
-          name: storeRequest.storeName || storeRequest.name || 'Store',
-          address: storeRequest.storeAddress || storeRequest.address || 'Address not available',
-          location: storeRequest.storeLocation || storeRequest.location || { latitude: 0, longitude: 0 },
-          ownerId: storeRequest.ownerId || 'unknown',
-          createdAt: storeRequest.createdAt,
-          updatedAt: storeRequest.updatedAt
-        };
-        storeMap.set(storeRequest.id, store);
+      const locationKey = this.getLocationKey(userLocation);
+      const resultCacheKey = `${this.RESULT_CACHE_KEY}:${normalizedQuery}:${locationKey}`;
+      const cachedResults = this.getCachedValue<SearchResult[]>(resultCacheKey, this.RESULT_CACHE_TTL_MS);
+
+      if (cachedResults) {
+        this.trackSearchSafely(query, cachedResults.length, userLocation);
+        return cachedResults;
+      }
+
+      const [items, stores] = await Promise.all([
+        this.getCachedCollection<Item>(this.ITEMS_CACHE_KEY, () => ItemService.getAll()),
+        this.getCachedCollection<Store>(this.STORES_CACHE_KEY, () => StoreService.getAll())
+      ]);
+
+      const searchTerms = this.tokenizeQuery(normalizedQuery);
+      const storeMap = new Map<string, Store>();
+
+      stores.forEach((store) => {
+        storeMap.set(this.normalizeStoreId(store.id), store);
       });
-      
-      console.log('🗺️ [SEARCH SERVICE DEBUG] Store map created with', storeMap.size, 'stores');
 
-      // Combine items with their store information
-      const searchResults: SearchResult[] = items
-        .map(item => {
-          // Handle virtual store IDs by removing the virtual_ prefix
-          let storeId = item.storeId;
-          if (storeId && storeId.startsWith('virtual_')) {
-            storeId = storeId.replace('virtual_', '');
-          }
-          
-          const store = storeMap.get(storeId);
-          if (!store) {
-            console.log('⚠️ [SEARCH SERVICE DEBUG] No store found for item:', {
-              itemName: item.name,
-              originalStoreId: item.storeId,
-              cleanedStoreId: storeId,
-              availableStoreIds: Array.from(storeMap.keys()).slice(0, 5)
-            });
-            return null;
-          }
+      const rankedResults: RankedSearchResult[] = [];
 
-          console.log('✅ [SEARCH SERVICE DEBUG] Item matched with store:', {
-            itemName: item.name,
-            storeName: store.name,
-            storeId: storeId
-          });
+      for (const item of items) {
+        if (item.deleted) {
+          continue;
+        }
 
-          let distance;
-          if (userLocation) {
-            distance = this.calculateDistance(
+        const store = storeMap.get(this.normalizeStoreId(item.storeId));
+        if (!store) {
+          continue;
+        }
+
+        const relevanceScore = this.calculateRelevanceScore(item, normalizedQuery, searchTerms);
+        if (relevanceScore <= 0) {
+          continue;
+        }
+
+        const distance = userLocation && this.hasValidCoordinates(store.location)
+          ? this.calculateDistance(
               userLocation.latitude,
               userLocation.longitude,
               store.location.latitude,
               store.location.longitude
-            );
-          }
-          
-          const result: SearchResult = {
-            ...item,
-            store,
-            distance
-          };
+            )
+          : undefined;
 
-          return result;
-        })
-        .filter((result): result is SearchResult => result !== null);
-      
-      console.log('🎯 [SEARCH SERVICE DEBUG] Final search results:', searchResults.length);
-
-      // Rank and sort results
-      const rankedResults = this.rankSearchResults(searchResults);
-      console.log('📊 [SEARCH SERVICE DEBUG] Ranked results:', rankedResults.length);
-
-      // Track search analytics
-      try {
-        await trackSearch({
-          searchQuery: query,
-          resultsCount: rankedResults.length,
-          location: userLocation
+        rankedResults.push({
+          ...item,
+          store,
+          ...(distance !== undefined ? { distance } : {}),
+          relevanceScore
         });
-      } catch (error) {
-        console.log('Analytics tracking failed:', error);
       }
 
-      return rankedResults;
+      const sortedResults = this.rankSearchResults(rankedResults);
+      const finalResults = sortedResults.slice(0, this.MAX_RESULTS).map(({ relevanceScore, ...result }) => result);
+
+      this.setCachedValue(resultCacheKey, finalResults);
+      this.trackSearchSafely(query, finalResults.length, userLocation);
+
+      return finalResults;
     } catch (error) {
       console.error('❌ [SEARCH SERVICE DEBUG] Search error:', error);
       throw new Error('Failed to search items. Please try again.');
@@ -116,9 +117,9 @@ export class SearchService {
 
   /**
    * Rank search results by relevance
-   * Priority: Distance first (if location available), then verified items, then other factors
+   * Priority: Distance first (if location available), then relevance score, then other factors
    */
-  private static rankSearchResults(results: SearchResult[]): SearchResult[] {
+  private static rankSearchResults(results: RankedSearchResult[]): RankedSearchResult[] {
     return results.sort((a, b) => {
       // FIRST PRIORITY: Distance (if available) - nearest items first
       if (a.distance !== undefined && b.distance !== undefined) {
@@ -132,16 +133,21 @@ export class SearchService {
       if (a.distance !== undefined && b.distance === undefined) return -1;
       if (a.distance === undefined && b.distance !== undefined) return 1;
 
-      // SECOND PRIORITY: verified items
+      // SECOND PRIORITY: relevance score
+      if (a.relevanceScore !== b.relevanceScore) {
+        return b.relevanceScore - a.relevanceScore;
+      }
+
+      // THIRD PRIORITY: verified items
       if (a.verified && !b.verified) return -1;
       if (!a.verified && b.verified) return 1;
 
-      // THIRD PRIORITY: fewer reports (more reliable)
+      // FOURTH PRIORITY: fewer reports (more reliable)
       if (a.reportCount !== b.reportCount) {
         return a.reportCount - b.reportCount;
       }
 
-      // FOURTH PRIORITY: more recent verification
+      // FIFTH PRIORITY: more recent verification
       if (a.verified && b.verified) {
         const aTime = a.verifiedAt?.toDate?.()?.getTime() || 0;
         const bTime = b.verifiedAt?.toDate?.()?.getTime() || 0;
@@ -254,6 +260,287 @@ export class SearchService {
 
   private static toRadians(degrees: number): number {
     return degrees * (Math.PI / 180);
+  }
+
+  private static normalizeQuery(query: string): string {
+    return this.normalizeText(query);
+  }
+
+  private static normalizeText(value: string | undefined | null): string {
+    if (!value) {
+      return '';
+    }
+
+    return value
+      .toString()
+      .normalize('NFKD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .toLowerCase()
+      .replace(/[^a-z0-9\s]/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+  }
+
+  private static tokenizeQuery(query: string): string[] {
+    return query.split(' ').map(term => term.trim()).filter(Boolean);
+  }
+
+  private static normalizeStoreId(storeId?: string): string {
+    if (!storeId) {
+      return '';
+    }
+
+    return storeId.replace(/^(temp_|virtual_)/, '');
+  }
+
+  private static hasValidCoordinates(location?: { latitude: number; longitude: number }): boolean {
+    return !!location && Number.isFinite(location.latitude) && Number.isFinite(location.longitude);
+  }
+
+  private static calculateRelevanceScore(item: Item, normalizedQuery: string, searchTerms: string[]): number {
+    const name = this.normalizeText(item.name);
+    const category = this.normalizeText(item.category);
+    const description = this.normalizeText(item.description);
+    const combined = [name, category, description].filter(Boolean).join(' ');
+
+    if (!combined) {
+      return 0;
+    }
+
+    let score = 0;
+
+    if (name === normalizedQuery) {
+      score += 5000;
+    }
+
+    if (name.startsWith(normalizedQuery)) {
+      score += 2500;
+    }
+
+    if (combined.includes(normalizedQuery)) {
+      score += 900;
+    }
+
+    const matchedTerms = searchTerms.filter(term => combined.includes(term));
+    if (matchedTerms.length > 0) {
+      score += matchedTerms.length * 250;
+      score += Math.round((matchedTerms.length / searchTerms.length) * 300);
+    }
+
+    if (category.includes(normalizedQuery)) {
+      score += 180;
+    }
+
+    if (description.includes(normalizedQuery)) {
+      score += 90;
+    }
+
+    if (item.verified) {
+      score += 150;
+    }
+
+    if (typeof item.reportCount === 'number') {
+      score += Math.max(0, 100 - item.reportCount * 15);
+    }
+
+    const verifiedMillis = this.getTimestampMillis(item.verifiedAt);
+    if (verifiedMillis) {
+      const daysSinceVerification = Math.max(0, (Date.now() - verifiedMillis) / 86400000);
+      score += Math.max(0, 75 - Math.floor(daysSinceVerification));
+    }
+
+    return score;
+  }
+
+  private static getTimestampMillis(value: unknown): number | null {
+    if (!value || typeof value !== 'object') {
+      return null;
+    }
+
+    const candidate = value as {
+      toMillis?: () => number;
+      toDate?: () => Date;
+      seconds?: number;
+      nanoseconds?: number;
+    };
+
+    if (typeof candidate.toMillis === 'function') {
+      return candidate.toMillis();
+    }
+
+    if (typeof candidate.toDate === 'function') {
+      return candidate.toDate().getTime();
+    }
+
+    if (typeof candidate.seconds === 'number') {
+      return candidate.seconds * 1000 + Math.floor((candidate.nanoseconds || 0) / 1_000_000);
+    }
+
+    return null;
+  }
+
+  private static getStorage(): Storage | null {
+    if (typeof window === 'undefined') {
+      return null;
+    }
+
+    for (const storageName of this.storagePriority) {
+      try {
+        const storage = window[storageName];
+        const testKey = '__finditfast_storage_test__';
+        storage.setItem(testKey, '1');
+        storage.removeItem(testKey);
+        return storage;
+      } catch {
+        continue;
+      }
+    }
+
+    return null;
+  }
+
+  private static getCachedValue<T>(key: string, ttlMs: number): T | null {
+    const storage = this.getStorage();
+    if (!storage) {
+      return null;
+    }
+
+    try {
+      const rawValue = storage.getItem(key);
+      if (!rawValue) {
+        return null;
+      }
+
+      const cached = this.deserialize<CacheEntry<T>>(rawValue);
+      if (!cached || cached.version !== this.CACHE_VERSION) {
+        storage.removeItem(key);
+        return null;
+      }
+
+      if (Date.now() - cached.timestamp > ttlMs) {
+        storage.removeItem(key);
+        return null;
+      }
+
+      return cached.data;
+    } catch (error) {
+      console.warn('Failed to read search cache:', error);
+      return null;
+    }
+  }
+
+  private static setCachedValue<T>(key: string, data: T): void {
+    const storage = this.getStorage();
+    if (!storage) {
+      return;
+    }
+
+    try {
+      const cacheEntry: CacheEntry<T> = {
+        version: this.CACHE_VERSION,
+        timestamp: Date.now(),
+        data
+      };
+
+      storage.setItem(key, this.serialize(cacheEntry));
+    } catch (error) {
+      console.warn('Failed to write search cache:', error);
+    }
+  }
+
+  private static async getCachedCollection<T>(key: string, fetcher: () => Promise<T[]>): Promise<T[]> {
+    const cached = this.getCachedValue<T[]>(key, this.CACHE_TTL_MS);
+    if (cached) {
+      return cached;
+    }
+
+    const data = await fetcher();
+    this.setCachedValue(key, data);
+    return data;
+  }
+
+  private static trackSearchSafely(query: string, resultsCount: number, userLocation?: { latitude: number; longitude: number }): void {
+    const trackPromise = Promise.resolve(trackSearch({
+      searchQuery: query,
+      resultsCount,
+      location: userLocation
+    }));
+
+    trackPromise.catch((error: unknown) => {
+      console.log('Analytics tracking failed:', error);
+    });
+  }
+
+  private static getLocationKey(userLocation?: { latitude: number; longitude: number }): string {
+    if (!userLocation) {
+      return 'noloc';
+    }
+
+    return `${userLocation.latitude.toFixed(3)}_${userLocation.longitude.toFixed(3)}`;
+  }
+
+  private static serialize<T>(value: T): string {
+    return JSON.stringify(value, (_key, currentValue) => {
+      if (this.isTimestampLike(currentValue)) {
+        return {
+          __cacheType: 'timestamp',
+          seconds: currentValue.seconds,
+          nanoseconds: currentValue.nanoseconds
+        };
+      }
+
+      if (currentValue instanceof Date) {
+        return {
+          __cacheType: 'date',
+          value: currentValue.toISOString()
+        };
+      }
+
+      return currentValue;
+    });
+  }
+
+  private static deserialize<T>(value: string): T {
+    return JSON.parse(value, (_key, currentValue) => {
+      if (currentValue && typeof currentValue === 'object' && currentValue.__cacheType === 'timestamp') {
+        return this.createTimestampLike(currentValue.seconds, currentValue.nanoseconds);
+      }
+
+      if (currentValue && typeof currentValue === 'object' && currentValue.__cacheType === 'date') {
+        return new Date(currentValue.value);
+      }
+
+      return currentValue;
+    }) as T;
+  }
+
+  private static isTimestampLike(value: unknown): value is { seconds: number; nanoseconds: number } {
+    if (!value || typeof value !== 'object') {
+      return false;
+    }
+
+    const candidate = value as {
+      seconds?: unknown;
+      nanoseconds?: unknown;
+      toDate?: unknown;
+      toMillis?: unknown;
+    };
+
+    return (
+      typeof candidate.seconds === 'number' &&
+      typeof candidate.nanoseconds === 'number' &&
+      typeof candidate.toDate !== 'function' &&
+      typeof candidate.toMillis !== 'function'
+    );
+  }
+
+  private static createTimestampLike(seconds: number, nanoseconds: number): TimestampLike {
+    return {
+      seconds,
+      nanoseconds,
+      toDate: () => new Date(seconds * 1000 + Math.floor(nanoseconds / 1_000_000)),
+      toMillis: () => seconds * 1000 + Math.floor(nanoseconds / 1_000_000)
+    };
   }
 
   /**

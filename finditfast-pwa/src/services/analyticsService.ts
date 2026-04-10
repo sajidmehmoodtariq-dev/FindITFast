@@ -1,6 +1,10 @@
 import { collection, addDoc, query, where, getDocs, orderBy, limit } from 'firebase/firestore';
 import { db } from './firebase';
 
+const SEARCH_DEDUPE_MS = 10 * 60 * 1000;
+const DEVICE_ID_KEY = 'finditfast_device_id';
+const SEARCH_WINDOW_KEY = 'finditfast_search_window_v1';
+
 export interface SearchLog {
   userId?: string;
   storeId?: string;
@@ -13,6 +17,8 @@ export interface SearchLog {
     latitude: number;
     longitude: number;
   };
+  deviceId?: string;
+  source?: 'search' | 'confirmation';
 }
 
 export interface UserActivityLog {
@@ -23,17 +29,116 @@ export interface UserActivityLog {
   userAgent?: string;
 }
 
+const normalizeSearchQuery = (searchQuery: string): string => {
+  return searchQuery
+    .normalize('NFKD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9\s]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+};
+
+const canUseStorage = (): boolean => {
+  return typeof window !== 'undefined' && !!window.localStorage;
+};
+
+const getDeviceId = (): string => {
+  if (!canUseStorage()) {
+    return 'unknown-device';
+  }
+
+  const existing = window.localStorage.getItem(DEVICE_ID_KEY);
+  if (existing) {
+    return existing;
+  }
+
+  const generated = `dev_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
+  window.localStorage.setItem(DEVICE_ID_KEY, generated);
+  return generated;
+};
+
+const getSearchWindowMap = (): Record<string, number> => {
+  if (!canUseStorage()) {
+    return {};
+  }
+
+  const raw = window.localStorage.getItem(SEARCH_WINDOW_KEY);
+  if (!raw) {
+    return {};
+  }
+
+  try {
+    return JSON.parse(raw) as Record<string, number>;
+  } catch {
+    return {};
+  }
+};
+
+const setSearchWindowMap = (value: Record<string, number>): void => {
+  if (!canUseStorage()) {
+    return;
+  }
+
+  window.localStorage.setItem(SEARCH_WINDOW_KEY, JSON.stringify(value));
+};
+
+const shouldLogSearch = (normalizedQuery: string, deviceId: string, dedupeWindowMs: number): boolean => {
+  const searchWindowMap = getSearchWindowMap();
+  const key = `${deviceId}:${normalizedQuery}`;
+  const lastTimestamp = searchWindowMap[key] || 0;
+  const now = Date.now();
+
+  if (now - lastTimestamp < dedupeWindowMs) {
+    return false;
+  }
+
+  searchWindowMap[key] = now;
+
+  // Keep map from growing unbounded by pruning old entries.
+  Object.keys(searchWindowMap).forEach((entryKey) => {
+    if (now - searchWindowMap[entryKey] > 7 * 24 * 60 * 60 * 1000) {
+      delete searchWindowMap[entryKey];
+    }
+  });
+
+  setSearchWindowMap(searchWindowMap);
+  return true;
+};
+
 export const analyticsService = {
   // Log search activity
-  logSearch: async (searchData: Omit<SearchLog, 'timestamp'>) => {
+  logSearch: async (
+    searchData: Omit<SearchLog, 'timestamp' | 'deviceId'>,
+    options?: { dedupeWindowMs?: number; source?: 'search' | 'confirmation' }
+  ): Promise<{ logged: boolean }> => {
     try {
+      const normalizedQuery = normalizeSearchQuery(searchData.searchQuery);
+      if (!normalizedQuery) {
+        return { logged: false };
+      }
+
+      const dedupeWindowMs = options?.dedupeWindowMs ?? SEARCH_DEDUPE_MS;
+      const deviceId = getDeviceId();
+      const shouldLog = shouldLogSearch(normalizedQuery, deviceId, dedupeWindowMs);
+
+      if (!shouldLog) {
+        return { logged: false };
+      }
+
       await addDoc(collection(db, 'searchLogs'), {
         ...searchData,
+        searchQuery: normalizedQuery,
         timestamp: new Date(),
-        userAgent: navigator.userAgent
+        userAgent: typeof navigator !== 'undefined' ? navigator.userAgent : undefined,
+        deviceId,
+        source: options?.source || 'search'
       });
+
+      return { logged: true };
     } catch (error) {
       console.error('Error logging search:', error);
+      return { logged: false };
     }
   },
 
@@ -193,15 +298,18 @@ export const trackPageView = (userId: string, page: string, metadata?: any) => {
 };
 
 // Helper function to track searches
-export const trackSearch = (searchData: {
-  userId?: string;
-  storeId?: string;
-  storeName?: string;
-  searchQuery: string;
-  resultsCount: number;
-  location?: { latitude: number; longitude: number };
-}) => {
-  analyticsService.logSearch(searchData);
+export const trackSearch = (
+  searchData: {
+    userId?: string;
+    storeId?: string;
+    storeName?: string;
+    searchQuery: string;
+    resultsCount: number;
+    location?: { latitude: number; longitude: number };
+  },
+  options?: { dedupeWindowMs?: number; source?: 'search' | 'confirmation' }
+) => {
+  return analyticsService.logSearch(searchData, options);
 };
 
 export default analyticsService;

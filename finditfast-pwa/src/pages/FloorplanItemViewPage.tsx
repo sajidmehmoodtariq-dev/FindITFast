@@ -255,7 +255,7 @@ export const FloorplanItemViewPage: React.FC = () => {
       />
       
       <MobileContent>
-        <div className="relative min-h-full bg-gray-50 overflow-hidden">
+        <div className="min-h-full bg-gray-50 flex flex-col">
           {/* Target Item Info Banner - Minimized */}
           {targetItem && (
             <div className="absolute top-0 left-0 right-0 z-20 bg-blue-600 text-white px-4 py-2 shadow-lg">
@@ -276,8 +276,8 @@ export const FloorplanItemViewPage: React.FC = () => {
           {/* Floorplan Container */}
           <div 
             ref={floorplanRef}
-            className={`relative w-full h-full overflow-hidden ${targetItem ? 'pt-12' : ''}`}
-            style={{ minHeight: 'calc(100vh - 140px)' }}
+            className={`relative w-full overflow-hidden ${targetItem ? 'pt-12' : ''}`}
+            style={{ minHeight: targetItem ? 'calc(100vh - 460px)' : 'calc(100vh - 220px)' }}
             onMouseDown={handleMouseDown}
             onMouseMove={handleMouseMove}
             onMouseUp={handleMouseUp}
@@ -287,7 +287,7 @@ export const FloorplanItemViewPage: React.FC = () => {
             {/* Floorplan Image */}
             {!imageError ? (
               <div
-                className="relative w-full h-full flex items-center justify-center"
+                className="relative w-full h-full flex items-start justify-center pt-2"
                 style={{
                   cursor: scale > 1 ? (isDragging ? 'grabbing' : 'grab') : 'default'
                 }}
@@ -304,7 +304,7 @@ export const FloorplanItemViewPage: React.FC = () => {
                     ref={imageRef}
                     src={floorplanImageUrl}
                     alt={`Floorplan for ${store.name}`}
-                    className="max-w-full max-h-[calc(100vh-200px)] transition-transform duration-200"
+                    className="w-full max-w-full max-h-[calc(100vh-320px)] object-contain object-top transition-transform duration-200"
                     onLoad={handleImageLoad}
                     onError={handleImageError}
                     draggable={false}
@@ -368,7 +368,7 @@ export const FloorplanItemViewPage: React.FC = () => {
           </div>
 
           {/* Zoom Controls */}
-          <div className="absolute bottom-20 right-4 flex flex-col space-y-2">
+          <div className="absolute right-4 bottom-4 flex flex-col space-y-2 z-20">
             <button
               onClick={handleZoomIn}
               className="w-12 h-12 bg-white rounded-full shadow-lg flex items-center justify-center hover:bg-gray-50"
@@ -395,69 +395,72 @@ export const FloorplanItemViewPage: React.FC = () => {
             </button>
           </div>
 
-          {/* Action Buttons */}
-          {targetItem && (
-            <div className="absolute bottom-20 left-4 right-4 bg-white/95 backdrop-blur-sm rounded-xl shadow-lg px-3 pb-3 pt-2">
-              <p className="text-sm font-semibold text-gray-800">Did you find this item</p>
-              <StockConfirmationButtons
-                item={targetItem}
-                userId={userId}
-                variant="map"
-                title=""
-                onConfirmed={(result) => {
-                  const inStockFromType = result.type === 'RED' ? false : true;
-
-                  setTargetItem((prev) => {
-                    if (!prev) return prev;
-                    return {
-                      ...prev,
-                      inStock: inStockFromType,
-                      lastConfirmedAt: result.lastConfirmedAt,
-                      weeklyGreenCount: result.weeklyGreenCount,
-                      weeklyYellowCount: result.weeklyYellowCount,
-                      recentRedCount24h: result.recentRedCount24h,
-                      statusOverride: result.statusOverride
-                    };
-                  });
-
-                  setAllItems((prev) => prev.map((item) => {
-                    if (item.id !== targetItem.id) return item;
-                    return {
-                      ...item,
-                      inStock: inStockFromType,
-                      lastConfirmedAt: result.lastConfirmedAt,
-                      weeklyGreenCount: result.weeklyGreenCount,
-                      weeklyYellowCount: result.weeklyYellowCount,
-                      recentRedCount24h: result.recentRedCount24h,
-                      statusOverride: result.statusOverride
-                    };
-                  }));
-                }}
-              />
-            </div>
-          )}
-
-          <div className="absolute bottom-4 left-4 right-4 flex space-x-3">
+          {/* Action Section */}
+          <div className="px-4 pb-[calc(env(safe-area-inset-bottom)+0.75rem)] pt-3 bg-gray-50">
             {targetItem && (
-              <button
-                onClick={handleItemMissing}
-                className="flex-1 bg-red-600 text-white py-3 px-4 rounded-xl font-medium hover:bg-red-700 transition-colors flex items-center justify-center"
-              >
-                <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.732-.833-2.5 0L4.314 18.5c-.77.833.192 2.5 1.732 2.5z" />
-                </svg>
-                Item Missing
-              </button>
+              <div className="bg-white/95 backdrop-blur-sm rounded-xl shadow-lg px-3 pb-3 pt-2 mb-3">
+                <p className="text-sm font-semibold text-gray-800">Did you find this item</p>
+                <StockConfirmationButtons
+                  item={targetItem}
+                  userId={userId}
+                  variant="map"
+                  title=""
+                  onConfirmed={(result) => {
+                    const inStockFromType = result.type === 'RED' ? false : true;
+
+                    setTargetItem((prev) => {
+                      if (!prev) return prev;
+                      return {
+                        ...prev,
+                        inStock: inStockFromType,
+                        lastConfirmedAt: result.lastConfirmedAt,
+                        weeklyGreenCount: result.weeklyGreenCount,
+                        weeklyYellowCount: result.weeklyYellowCount,
+                        recentRedCount24h: result.recentRedCount24h,
+                        statusOverride: result.statusOverride
+                      };
+                    });
+
+                    setAllItems((prev) => prev.map((item) => {
+                      if (item.id !== targetItem.id) return item;
+                      return {
+                        ...item,
+                        inStock: inStockFromType,
+                        lastConfirmedAt: result.lastConfirmedAt,
+                        weeklyGreenCount: result.weeklyGreenCount,
+                        weeklyYellowCount: result.weeklyYellowCount,
+                        recentRedCount24h: result.recentRedCount24h,
+                        statusOverride: result.statusOverride
+                      };
+                    }));
+                  }}
+                />
+              </div>
             )}
-            <button
-              onClick={() => navigate('/')}
-              className="flex-1 bg-gray-600 text-white py-3 px-4 rounded-xl font-medium hover:bg-gray-700 transition-colors flex items-center justify-center"
-            >
-              <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
-              </svg>
-              Back to Search
-            </button>
+
+            <div className={`grid gap-3 ${targetItem ? 'grid-cols-2' : 'grid-cols-1'}`}>
+              {targetItem && (
+                <button
+                  onClick={handleItemMissing}
+                  className="w-full bg-red-600 text-white py-3 px-4 rounded-xl font-medium hover:bg-red-700 transition-colors flex items-center justify-center text-base leading-tight min-h-14"
+                >
+                  <svg className="w-5 h-5 mr-2 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.732-.833-2.5 0L4.314 18.5c-.77.833.192 2.5 1.732 2.5z" />
+                  </svg>
+                  <span className="text-center">Item Missing</span>
+                </button>
+              )}
+
+              <button
+                onClick={() => navigate('/')}
+                className="w-full bg-gray-600 text-white py-3 px-4 rounded-xl font-medium hover:bg-gray-700 transition-colors flex items-center justify-center text-base leading-tight min-h-14"
+              >
+                <svg className="w-5 h-5 mr-2 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+                </svg>
+                <span className="text-center">Back to Search</span>
+              </button>
+            </div>
           </div>
 
 
