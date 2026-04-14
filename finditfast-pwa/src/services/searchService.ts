@@ -1,4 +1,5 @@
-import { ItemService, StoreService } from './firestoreService';
+import { Timestamp, where } from 'firebase/firestore';
+import { FirestoreService, ItemService, StoreService } from './firestoreService';
 import { trackSearch } from './analyticsService';
 // Import types are used in JSDoc comments and type annotations
 import type { SearchResult } from '../types/search';
@@ -56,7 +57,7 @@ export class SearchService {
         return cachedResults;
       }
 
-      const [items, stores] = await Promise.all([
+      const [items, primaryStores] = await Promise.all([
         this.getCachedCollection<Item>(this.ITEMS_CACHE_KEY, () => ItemService.getAll()),
         this.getCachedCollection<Store>(this.STORES_CACHE_KEY, () => StoreService.getAll())
       ]);
@@ -64,10 +65,11 @@ export class SearchService {
       const searchTerms = this.tokenizeQuery(normalizedQuery);
       const storeMap = new Map<string, Store>();
 
-      stores.forEach((store) => {
-        storeMap.set(this.normalizeStoreId(store.id), store);
+      primaryStores.forEach((store) => {
+        this.registerStore(storeMap, store);
       });
 
+      const unresolvedItems: Item[] = [];
       const rankedResults: RankedSearchResult[] = [];
 
       for (const item of items) {
@@ -77,6 +79,7 @@ export class SearchService {
 
         const store = storeMap.get(this.normalizeStoreId(item.storeId));
         if (!store) {
+          unresolvedItems.push(item);
           continue;
         }
 
@@ -100,6 +103,41 @@ export class SearchService {
           ...(distance !== undefined ? { distance } : {}),
           relevanceScore
         });
+      }
+
+      if (unresolvedItems.length > 0) {
+        const fallbackStores = await this.loadFallbackStores();
+        fallbackStores.forEach((store) => {
+          this.registerStore(storeMap, store);
+        });
+
+        for (const item of unresolvedItems) {
+          const store = storeMap.get(this.normalizeStoreId(item.storeId));
+          if (!store) {
+            continue;
+          }
+
+          const relevanceScore = this.calculateRelevanceScore(item, normalizedQuery, searchTerms);
+          if (relevanceScore <= 0) {
+            continue;
+          }
+
+          const distance = userLocation && this.hasValidCoordinates(store.location)
+            ? this.calculateDistance(
+                userLocation.latitude,
+                userLocation.longitude,
+                store.location.latitude,
+                store.location.longitude
+              )
+            : undefined;
+
+          rankedResults.push({
+            ...item,
+            store,
+            ...(distance !== undefined ? { distance } : {}),
+            relevanceScore
+          });
+        }
       }
 
       const sortedResults = this.rankSearchResults(rankedResults);
@@ -295,6 +333,59 @@ export class SearchService {
 
   private static hasValidCoordinates(location?: { latitude: number; longitude: number }): boolean {
     return !!location && Number.isFinite(location.latitude) && Number.isFinite(location.longitude);
+  }
+
+  private static registerStore(storeMap: Map<string, Store>, rawStore: any): void {
+    const normalizedStore = this.normalizeStoreRecord(rawStore);
+    if (!normalizedStore) {
+      return;
+    }
+
+    storeMap.set(normalizedStore.id, normalizedStore);
+    storeMap.set(this.normalizeStoreId(normalizedStore.id), normalizedStore);
+
+    const sourceStoreId = rawStore?.storeId ? this.normalizeStoreId(String(rawStore.storeId)) : '';
+    if (sourceStoreId) {
+      storeMap.set(sourceStoreId, normalizedStore);
+    }
+  }
+
+  private static normalizeStoreRecord(rawStore: any): Store | null {
+    if (!rawStore) {
+      return null;
+    }
+
+    const id = rawStore.id || rawStore.storeId;
+    if (!id) {
+      return null;
+    }
+
+    return {
+      id,
+      name: rawStore.name || rawStore.storeName || 'Store',
+      address: rawStore.address || rawStore.storeAddress || 'Address not available',
+      location: rawStore.location || rawStore.storeLocation || { latitude: 0, longitude: 0 },
+      ownerId: rawStore.ownerId || rawStore.requestedBy || 'unknown',
+      createdAt: rawStore.createdAt || Timestamp.now(),
+      updatedAt: rawStore.updatedAt || Timestamp.now(),
+      deleted: rawStore.deleted
+    };
+  }
+
+  private static async loadFallbackStores(): Promise<Store[]> {
+    try {
+      const [legacyStores, approvedStoreRequests] = await Promise.all([
+        FirestoreService.getCollection<any>('stores'),
+        FirestoreService.getCollection<any>('storeRequests', [where('status', '==', 'approved')])
+      ]);
+
+      return [...legacyStores, ...approvedStoreRequests]
+        .map(store => this.normalizeStoreRecord(store))
+        .filter((store): store is Store => !!store && !store.deleted);
+    } catch (error) {
+      console.warn('Failed to load fallback stores for search:', error);
+      return [];
+    }
   }
 
   private static calculateRelevanceScore(item: Item, normalizedQuery: string, searchTerms: string[]): number {

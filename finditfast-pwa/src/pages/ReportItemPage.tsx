@@ -22,7 +22,6 @@ interface CameraState {
 }
 
 const CAMERA_START_TIMEOUT_MS = 8000;
-const CAMERA_PREVIEW_TIMEOUT_MS = 3500;
 
 const isLikelyMobileDevice = () => {
   return /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent) || navigator.maxTouchPoints > 1;
@@ -122,9 +121,22 @@ export const ReportItemPage: React.FC = () => {
     videoElement.setAttribute('playsinline', 'true');
     videoElement.setAttribute('webkit-playsinline', 'true');
 
-    const previewWatchdog = window.setTimeout(() => {
+    const MAX_ATTEMPTS = 4; // Check every 2 seconds for up to 8 seconds
+    let currentAttempt = 0;
+
+    const previewWatchdog = window.setInterval(() => {
+      currentAttempt++;
       const hasFrame = videoElement.videoWidth > 0 && videoElement.videoHeight > 0;
-      if (!hasFrame) {
+      console.log(`[Camera Watchdog] Attempt ${currentAttempt}/${MAX_ATTEMPTS}: videoWidth=${videoElement.videoWidth}, videoHeight=${videoElement.videoHeight}, hasFrame=${hasFrame}`);
+      
+      if (hasFrame) {
+        console.log('[Camera Watchdog] ✅ Video frames received, stopping watchdog');
+        window.clearInterval(previewWatchdog);
+        return;
+      }
+
+      if (currentAttempt >= MAX_ATTEMPTS) {
+        console.warn('[Camera Watchdog] ❌ No frames after multiple attempts, stopping camera');
         activeStream.getTracks().forEach(track => track.stop());
         const shouldAutoOpenFallbackPicker = isLikelyMobileDevice() && !!mobileCameraInputRef.current;
 
@@ -137,40 +149,47 @@ export const ReportItemPage: React.FC = () => {
             ...prev,
             isActive: false,
             stream: null,
-            error: 'Camera opened but no preview was received. Tap Retry. If it persists on mobile, use the browser camera picker.'
+            error: 'Camera opened but no preview was received. Tap Retry. If it persists on mobile, use the Camera/Photo Picker fallback.'
           };
         });
         setCurrentCapture(null);
 
         if (shouldAutoOpenFallbackPicker) {
+          console.log('[Camera Fallback] Triggering mobile camera picker');
           mobileCameraInputRef.current?.click();
         }
+
+        window.clearInterval(previewWatchdog);
       }
-    }, CAMERA_PREVIEW_TIMEOUT_MS);
+    }, 2000); // Check every 2 seconds
 
     const playWhenReady = async () => {
       try {
+        console.log('[Camera] Attempting to play video...');
         await videoElement.play();
+        console.log('[Camera] ✅ Video playing');
       } catch (playError) {
-        console.warn('Video playback did not start immediately:', playError);
+        console.warn('[Camera] Video playback error:', playError);
       }
     };
 
     if (videoElement.readyState >= 1) {
+      console.log('[Camera] Video ready, starting playback...');
       void playWhenReady();
       return () => {
-        window.clearTimeout(previewWatchdog);
+        window.clearInterval(previewWatchdog);
       };
     }
 
     const onLoadedMetadata = () => {
+      console.log('[Camera] Metadata loaded, starting playback...');
       void playWhenReady();
     };
 
     videoElement.addEventListener('loadedmetadata', onLoadedMetadata, { once: true });
 
     return () => {
-      window.clearTimeout(previewWatchdog);
+      window.clearInterval(previewWatchdog);
       videoElement.removeEventListener('loadedmetadata', onLoadedMetadata);
     };
   }, [camera.isActive, camera.stream]);
@@ -300,7 +319,10 @@ export const ReportItemPage: React.FC = () => {
 
   // Start camera
   const startCamera = useCallback(async (captureType: 'item' | 'location') => {
+    console.log('[Camera Init] Starting camera request for capture type:', captureType);
+    
     if (!camera.isSupported) {
+      console.error('[Camera Init] Camera is not supported');
       setCamera(prev => ({
         ...prev,
         error: 'Camera is not supported on this device or browser.',
@@ -312,15 +334,19 @@ export const ReportItemPage: React.FC = () => {
 
     try {
       setStartingCamera(true);
+      console.log('[Camera Init] Set starting camera to true');
 
       if (streamRef.current) {
+        console.log('[Camera Init] Stopping existing stream');
         streamRef.current.getTracks().forEach(track => track.stop());
         streamRef.current = null;
       }
 
       if (typeof navigator.mediaDevices?.getUserMedia !== 'function') {
+        console.warn('[Camera Init] getUserMedia not available, using fallback');
         // Mobile fallback: still camera-only via capture input.
         if (camera.hasCaptureFallback && mobileCameraInputRef.current) {
+          console.log('[Camera Init] Triggering mobile camera fallback');
           setCamera(prev => ({ ...prev, error: null, isActive: false }));
           mobileCameraInputRef.current.click();
           return;
@@ -335,8 +361,12 @@ export const ReportItemPage: React.FC = () => {
         return;
       }
 
+      console.log('[Camera Init] Checking camera permissions...');
       const permission = await checkCameraPermission();
+      console.log('[Camera Init] Permission state:', permission);
+      
       if (permission === 'denied') {
+        console.error('[Camera Init] Camera permission denied');
         setCamera(prev => ({
           ...prev,
           permissionState: 'denied',
@@ -351,6 +381,7 @@ export const ReportItemPage: React.FC = () => {
       setCurrentCapture(captureType);
 
       const getUserMediaWithTimeout = async (constraints: MediaStreamConstraints): Promise<MediaStream> => {
+        console.log('[Camera Init] Requesting getUserMedia with constraints:', constraints);
         return await Promise.race([
           navigator.mediaDevices.getUserMedia(constraints),
           new Promise<never>((_, reject) => {
@@ -360,6 +391,8 @@ export const ReportItemPage: React.FC = () => {
       };
       
       const isMobileDevice = isLikelyMobileDevice();
+      console.log('[Camera Init] Device type:', isMobileDevice ? 'mobile' : 'desktop');
+      
       const preferredConstraints: MediaStreamConstraints = isMobileDevice
         ? {
             video: {
@@ -377,18 +410,26 @@ export const ReportItemPage: React.FC = () => {
 
       let stream: MediaStream;
       try {
+        console.log('[Camera Init] Attempting initial getUserMedia with preferred constraints');
         stream = await getUserMediaWithTimeout(preferredConstraints);
+        console.log('[Camera Init] ✅ Got stream with preferred constraints');
       } catch (preferredError) {
         // Desktop/laptop fallback where facingMode constraint can fail.
+        console.warn('[Camera Init] Preferred constraints failed, trying basic constraints:', preferredError);
         stream = await getUserMediaWithTimeout({ video: true });
+        console.log('[Camera Init] ✅ Got stream with basic constraints');
       }
 
       const videoTrack = stream.getVideoTracks()[0];
+      console.log('[Camera Init] Video track:', videoTrack?.label, 'readyState:', videoTrack?.readyState);
+      
       if (!videoTrack || videoTrack.readyState !== 'live') {
+        console.error('[Camera Init] No live video track, stopping stream');
         stream.getTracks().forEach(track => track.stop());
         throw new Error('No live video track from camera');
       }
 
+      console.log('[Camera Init] ✅ Setting camera state to active with stream');
       setCamera(prev => ({
         ...prev,
         isActive: true,
@@ -396,10 +437,11 @@ export const ReportItemPage: React.FC = () => {
         error: null
       }));
     } catch (error) {
-      console.warn('Camera access failed:', error);
+      console.error('[Camera Init] Error during camera initialization:', error);
 
       let message = 'Failed to access camera. Please check permissions.';
       if (error instanceof DOMException) {
+        console.error('[Camera Init] DOMException:', error.name, error.message);
         if (error.name === 'NotAllowedError' || error.name === 'PermissionDeniedError') {
           message = 'Camera permission denied. Enable camera access in browser/site settings, then tap Retry.';
           setCamera(prev => ({ ...prev, permissionState: 'denied' }));
@@ -412,6 +454,7 @@ export const ReportItemPage: React.FC = () => {
         message = 'Camera did not open in time. Please tap Retry.';
       }
 
+      console.error('[Camera Init] Showing error:', message);
       setCamera(prev => ({
         ...prev,
         error: message,
@@ -420,6 +463,7 @@ export const ReportItemPage: React.FC = () => {
       setCurrentCapture(null);
     } finally {
       setStartingCamera(false);
+      console.log('[Camera Init] Finished camera initialization attempt');
     }
   }, [camera.isSupported, camera.hasCaptureFallback, checkCameraPermission]);
 
