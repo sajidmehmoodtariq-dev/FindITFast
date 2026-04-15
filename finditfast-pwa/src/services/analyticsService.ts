@@ -18,7 +18,7 @@ export interface SearchLog {
     longitude: number;
   };
   deviceId?: string;
-  source?: 'search' | 'confirmation';
+  source?: 'search' | 'product_click' | 'confirmation';
 }
 
 export interface UserActivityLog {
@@ -110,7 +110,7 @@ export const analyticsService = {
   // Log search activity
   logSearch: async (
     searchData: Omit<SearchLog, 'timestamp' | 'deviceId'>,
-    options?: { dedupeWindowMs?: number; source?: 'search' | 'confirmation' }
+    options?: { dedupeWindowMs?: number; source?: 'search' | 'product_click' | 'confirmation' }
   ): Promise<{ logged: boolean }> => {
     try {
       const normalizedQuery = normalizeSearchQuery(searchData.searchQuery);
@@ -120,7 +120,8 @@ export const analyticsService = {
 
       const dedupeWindowMs = options?.dedupeWindowMs ?? SEARCH_DEDUPE_MS;
       const deviceId = getDeviceId();
-      const shouldLog = shouldLogSearch(normalizedQuery, deviceId, dedupeWindowMs);
+      const source = options?.source || 'search';
+      const shouldLog = shouldLogSearch(`${source}:${normalizedQuery}`, deviceId, dedupeWindowMs);
 
       if (!shouldLog) {
         return { logged: false };
@@ -132,7 +133,7 @@ export const analyticsService = {
         timestamp: new Date(),
         userAgent: typeof navigator !== 'undefined' ? navigator.userAgent : undefined,
         deviceId,
-        source: options?.source || 'search'
+        source
       });
 
       return { logged: true };
@@ -307,7 +308,7 @@ export const trackSearch = (
     resultsCount: number;
     location?: { latitude: number; longitude: number };
   },
-  options?: { dedupeWindowMs?: number; source?: 'search' | 'confirmation' }
+  options?: { dedupeWindowMs?: number; source?: 'search' | 'product_click' | 'confirmation' }
 ) => {
   return analyticsService.logSearch(searchData, options);
 };

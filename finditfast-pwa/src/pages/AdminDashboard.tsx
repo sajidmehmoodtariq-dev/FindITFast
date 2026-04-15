@@ -210,6 +210,8 @@ export const AdminDashboard: React.FC = () => {
         console.log('No search logs collection found');
       }
 
+      const effectiveSearchLogs = searchLogs.filter(log => (log.source || 'search') !== 'confirmation');
+
       // Get stock confirmation events
       let confirmationLogs: any[] = [];
       try {
@@ -309,7 +311,7 @@ export const AdminDashboard: React.FC = () => {
 
       // Count searches per store (if search logs available)
       const storeSearchCounts: Record<string, number> = {};
-      searchLogs.forEach(search => {
+      effectiveSearchLogs.forEach(search => {
         const storeId = search.storeId || search.store || 'unknown';
         storeSearchCounts[storeId] = (storeSearchCounts[storeId] || 0) + 1;
       });
@@ -361,16 +363,16 @@ export const AdminDashboard: React.FC = () => {
       userLogs.forEach(log => {
         if (log.userId) uniqueUsers.add(log.userId);
       });
-      searchLogs.forEach(log => {
+      effectiveSearchLogs.forEach(log => {
         if (log.userId) uniqueUsers.add(log.userId);
       });
       
       const timeMetrics = {
         avgApprovalTime: Math.round(avgApprovalTime * 10) / 10,
         avgResponseTime: Math.round(avgResponseTime * 10) / 10,
-        totalSearches: searchLogs.length,
+        totalSearches: effectiveSearchLogs.length,
         totalConfirmations: confirmationLogs.length,
-        dailySearches: searchLogs.filter(log => {
+        dailySearches: effectiveSearchLogs.filter(log => {
           const date = new Date(log.timestamp);
           const today = new Date();
           return date.toDateString() === today.toDateString();
@@ -393,7 +395,7 @@ export const AdminDashboard: React.FC = () => {
         const nextDay = new Date(day);
         nextDay.setDate(nextDay.getDate() + 1);
 
-        const searches = searchLogs.filter(log => {
+        const searches = effectiveSearchLogs.filter(log => {
           const timestamp = new Date(log.timestamp);
           return timestamp >= day && timestamp < nextDay;
         }).length;

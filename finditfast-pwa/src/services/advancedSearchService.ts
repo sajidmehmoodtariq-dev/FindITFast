@@ -1,5 +1,4 @@
 import { ItemService, FirestoreService } from './firestoreService';
-import { trackSearch } from './analyticsService';
 import { Timestamp, where } from 'firebase/firestore';
 import type { SearchResult } from '../types/search';
 import type { Store } from '../types';
@@ -99,17 +98,6 @@ export class AdvancedSearchService {
 
       // Cache results for better performance
       this.cacheResults(query, sortedResults);
-
-      // Track search analytics
-      try {
-        await trackSearch({
-          searchQuery: query,
-          resultsCount: sortedResults.length,
-          location: userLocation
-        });
-      } catch (error) {
-        console.warn('Analytics tracking failed (non-critical):', error);
-      }
 
       // Save search to history
       this.saveSearchToHistory(query);

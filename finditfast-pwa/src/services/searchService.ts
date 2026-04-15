@@ -1,6 +1,5 @@
 import { Timestamp, where } from 'firebase/firestore';
 import { FirestoreService, ItemService, StoreService } from './firestoreService';
-import { trackSearch } from './analyticsService';
 // Import types are used in JSDoc comments and type annotations
 import type { SearchResult } from '../types/search';
 import type { Item, Store } from '../types';
@@ -53,7 +52,6 @@ export class SearchService {
       const cachedResults = this.getCachedValue<SearchResult[]>(resultCacheKey, this.RESULT_CACHE_TTL_MS);
 
       if (cachedResults) {
-        this.trackSearchSafely(query, cachedResults.length, userLocation);
         return cachedResults;
       }
 
@@ -144,7 +142,6 @@ export class SearchService {
       const finalResults = sortedResults.slice(0, this.MAX_RESULTS).map(({ relevanceScore, ...result }) => result);
 
       this.setCachedValue(resultCacheKey, finalResults);
-      this.trackSearchSafely(query, finalResults.length, userLocation);
 
       return finalResults;
     } catch (error) {
@@ -548,18 +545,6 @@ export class SearchService {
     const data = await fetcher();
     this.setCachedValue(key, data);
     return data;
-  }
-
-  private static trackSearchSafely(query: string, resultsCount: number, userLocation?: { latitude: number; longitude: number }): void {
-    const trackPromise = Promise.resolve(trackSearch({
-      searchQuery: query,
-      resultsCount,
-      location: userLocation
-    }));
-
-    trackPromise.catch((error: unknown) => {
-      console.log('Analytics tracking failed:', error);
-    });
   }
 
   private static getLocationKey(userLocation?: { latitude: number; longitude: number }): string {

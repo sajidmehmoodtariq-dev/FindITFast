@@ -4,6 +4,7 @@ import { SearchResults } from '../components/search';
 import { MobileLayout, MobileContent } from '../components/common/MobileLayout';
 import { LazyLoad } from '../components/performance/LazyLoading';
 import { SearchService } from '../services/searchService';
+import { analyticsService } from '../services/analyticsService';
 import { useGeolocation } from '../hooks/useGeolocation';
 import type { SearchResult, SearchState } from '../types/search';
 
@@ -107,9 +108,20 @@ export const SearchPage: React.FC = () => {
 
 
   const handleResultClick = useCallback((result: SearchResult) => {
+    void analyticsService.logSearch({
+      searchQuery: result.name,
+      resultsCount: 1,
+      storeId: result.storeId,
+      storeName: result.store.name,
+      location: geolocation.userLocation || undefined
+    }, {
+      source: 'search',
+      dedupeWindowMs: 0
+    });
+
     // Use the store request document ID for navigation, not the item's storeId
     navigate(`/item/${result.id}/store/${result.store.id}`);
-  }, [navigate]);
+  }, [navigate, geolocation.userLocation]);
 
   // Handle location permission request
   const handleLocationRequest = useCallback(async () => {

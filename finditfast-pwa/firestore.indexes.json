@@ -205,6 +205,20 @@
         {
           "fieldPath": "userId",
           "order": "ASCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "itemStatusEvents",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "itemId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "userId",
+          "order": "ASCENDING"
         },
         {
           "fieldPath": "createdAt",

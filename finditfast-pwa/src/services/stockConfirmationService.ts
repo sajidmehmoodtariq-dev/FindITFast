@@ -1,6 +1,5 @@
 import { collection, addDoc, query, where, getDocs, updateDoc, doc, Timestamp, getDoc } from 'firebase/firestore';
 import { db } from './firebase';
-import { trackSearch } from './analyticsService';
 import type { Item, ItemStatusEvent } from '../types';
 
 const RATE_LIMIT_HOURS = 6;
@@ -40,12 +39,16 @@ export const stockConfirmationService = {
         const q = query(
             eventsRef,
             where('itemId', '==', itemId),
-            where('userId', '==', userId),
-            where('createdAt', '>=', Timestamp.fromDate(sixHoursAgo))
+            where('userId', '==', userId)
         );
 
         const recentEvents = await getDocs(q);
-        if (!recentEvents.empty) {
+        const recentWithinWindow = recentEvents.docs.filter((eventDoc) => {
+            const createdAt = eventDoc.data().createdAt as Timestamp | undefined;
+            return createdAt ? createdAt.toDate() >= sixHoursAgo : false;
+        });
+
+        if (recentWithinWindow.length > 0) {
             throw new Error(`You have already confirmed this item's status recently. Please wait ${RATE_LIMIT_HOURS} hours.`);
         }
 
@@ -98,20 +101,6 @@ export const stockConfirmationService = {
             statusOverride,
             updatedAt: nowTimestamp
         });
-
-        // Count confirmation-driven search intent using the same 10-minute dedupe window.
-        void trackSearch(
-            {
-                userId,
-                storeId,
-                searchQuery: item.name || itemId,
-                resultsCount: 1
-            },
-            {
-                dedupeWindowMs: 10 * 60 * 1000,
-                source: 'confirmation'
-            }
-        );
 
         // Keep this optional signal index-safe by using a single-field query
         // and filtering by date in memory.

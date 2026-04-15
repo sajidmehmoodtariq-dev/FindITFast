@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { StorePlanService, ItemService, StoreService } from '../services/firestoreService';
 import { MobileLayout, MobileContent, MobileHeader } from '../components/common/MobileLayout';
@@ -19,7 +19,6 @@ export const FloorplanItemViewPage: React.FC = () => {
   
   const [storePlan, setStorePlan] = useState<StorePlan | null>(null);
   const [targetItem, setTargetItem] = useState<Item | null>(null);
-  const [allItems, setAllItems] = useState<Item[]>([]);
   const [store, setStore] = useState<Store | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -34,6 +33,8 @@ export const FloorplanItemViewPage: React.FC = () => {
   // Blinking animation state
   const [isBlinking, setIsBlinking] = useState(true);
   const [anonymousId, setAnonymousId] = useState<string>('');
+  const [containerSize, setContainerSize] = useState({ width: 0, height: 0 });
+  const [imageSize, setImageSize] = useState({ width: 0, height: 0 });
   
   const floorplanRef = useRef<HTMLDivElement>(null);
   const imageRef = useRef<HTMLImageElement>(null);
@@ -88,18 +89,6 @@ export const FloorplanItemViewPage: React.FC = () => {
         console.log('✅ Active plan found:', activePlan.name, 'size:', activePlan.size);
         setStorePlan(activePlan);
 
-        // Load all items for the store to show on floorplan
-        console.log('📦 Loading items for store:', storeId);
-        const storeItems = await ItemService.getByStore(storeId);
-        console.log('📦 Items loaded:', storeItems.length, 'items');
-        console.log('📦 Items with positions:', storeItems.map(item => ({
-          id: item.id,
-          name: item.name,
-          position: item.position,
-          hasPosition: !!(item.position?.x !== undefined && item.position?.y !== undefined)
-        })));
-        setAllItems(storeItems);
-
         // Load specific target item if provided
         if (itemId) {
           console.log('🎯 Loading target item:', itemId);
@@ -141,8 +130,64 @@ export const FloorplanItemViewPage: React.FC = () => {
     return () => clearTimeout(timer);
   }, []);
 
+  useEffect(() => {
+    const updateContainerSize = () => {
+      if (!floorplanRef.current) return;
+
+      const rect = floorplanRef.current.getBoundingClientRect();
+      setContainerSize({
+        width: rect.width,
+        height: rect.height
+      });
+    };
+
+    updateContainerSize();
+    window.addEventListener('resize', updateContainerSize);
+    window.addEventListener('orientationchange', updateContainerSize);
+
+    return () => {
+      window.removeEventListener('resize', updateContainerSize);
+      window.removeEventListener('orientationchange', updateContainerSize);
+    };
+  }, [storePlan, targetItem]);
+
+  const floorplanFrame = useMemo(() => {
+    if (!containerSize.width || !containerSize.height || !imageSize.width || !imageSize.height) {
+      return null;
+    }
+
+    const containerAspect = containerSize.width / containerSize.height;
+    const imageAspect = imageSize.width / imageSize.height;
+
+    if (imageAspect >= containerAspect) {
+      const width = containerSize.width;
+      const height = width / imageAspect;
+      return {
+        x: 0,
+        y: (containerSize.height - height) / 2,
+        width,
+        height
+      };
+    }
+
+    const height = containerSize.height;
+    const width = height * imageAspect;
+    return {
+      x: (containerSize.width - width) / 2,
+      y: 0,
+      width,
+      height
+    };
+  }, [containerSize, imageSize]);
+
   const handleImageLoad = () => {
     setImageError(false);
+    if (imageRef.current) {
+      setImageSize({
+        width: imageRef.current.naturalWidth || 0,
+        height: imageRef.current.naturalHeight || 0
+      });
+    }
     // Keep map anchored to top-left on mobile to avoid large empty space.
     setPosition({ x: 0, y: 0 });
     setScale(1);
@@ -287,67 +332,52 @@ export const FloorplanItemViewPage: React.FC = () => {
                   cursor: scale > 1 ? (isDragging ? 'grabbing' : 'grab') : 'default'
                 }}
               >
-                {/* Image container with zoom and pan - EXACT COPY from FullScreenInventory */}
-                <div 
-                  className="relative w-full h-full"
+                <div
+                  className="absolute"
                   style={{
+                    left: `${floorplanFrame?.x ?? 0}px`,
+                    top: `${floorplanFrame?.y ?? 0}px`,
+                    width: `${floorplanFrame?.width ?? containerSize.width}px`,
+                    height: `${floorplanFrame?.height ?? containerSize.height}px`,
                     transform: `translate(${position.x}px, ${position.y}px) scale(${scale})`,
-                    transformOrigin: 'center'
+                    transformOrigin: 'center center'
                   }}
                 >
                   <img
                     ref={imageRef}
                     src={floorplanImageUrl}
                     alt={`Floorplan for ${store.name}`}
-                    className="w-full h-full object-contain object-top transition-transform duration-200"
+                    className="w-full h-full object-cover transition-transform duration-200 select-none"
                     onLoad={handleImageLoad}
                     onError={handleImageError}
                     draggable={false}
                   />
-                  
-                  {/* Show existing item pins - EXACT COPY from FullScreenInventory */}
-                  {allItems.map((item) => {
-                    if (!item.position) return null;
-                    
-                    console.log('🖼️ Rendering pin for:', item.name, 'at position:', item.position);
-                    
-                    const isTargetItem = targetItem?.id === item.id;
-                    
-                    return (
-                      <div
-                        key={item.id}
-                        className="absolute z-20 pointer-events-none"
-                        style={{ 
-                          left: `${item.position.x}%`, 
-                          top: `${item.position.y}%`,
-                          transform: `translate(-50%, -50%)`
-                        }}
-                      >
-                        {isTargetItem ? (
-                          // Target item with blinking effect
-                          <div className="relative">
-                            {isBlinking && (
-                              <>
-                                {/* Pulsing ring effect */}
-                                <div className="absolute inset-0 w-12 h-12 bg-green-500 rounded-full animate-ping opacity-75" 
-                                     style={{ transform: `translate(-50%, -50%)` }}></div>
-                                <div className="absolute inset-0 w-8 h-8 bg-green-600 rounded-full animate-pulse"
-                                     style={{ transform: `translate(-50%, -50%)` }}></div>
-                              </>
-                            )}
-                            {/* Center dot */}
-                            <div className="absolute w-12 h-12 bg-green-500 rounded-full border-4 border-white shadow-lg flex items-center justify-center"
-                                 style={{ transform: `translate(-50%, -50%)` }}>
-                              <span className="text-white text-sm font-bold">!</span>
-                            </div>
-                          </div>
-                        ) : (
-                          // Regular item pin
-                          <div className="w-6 h-6 bg-blue-400 rounded-full border-2 border-white shadow-md"></div>
+
+                  {targetItem?.position && (
+                    <div
+                      className="absolute z-20 pointer-events-none"
+                      style={{
+                        left: `${targetItem.position.x}%`,
+                        top: `${targetItem.position.y}%`,
+                        transform: 'translate(-50%, -50%)'
+                      }}
+                    >
+                      <div className="relative">
+                        {isBlinking && (
+                          <>
+                            <div className="absolute inset-0 w-12 h-12 bg-green-500 rounded-full animate-ping opacity-75"
+                                 style={{ transform: 'translate(-50%, -50%)' }}></div>
+                            <div className="absolute inset-0 w-8 h-8 bg-green-600 rounded-full animate-pulse"
+                                 style={{ transform: 'translate(-50%, -50%)' }}></div>
+                          </>
                         )}
+                        <div className="absolute w-12 h-12 bg-green-500 rounded-full border-4 border-white shadow-lg flex items-center justify-center"
+                             style={{ transform: 'translate(-50%, -50%)' }}>
+                          <span className="text-white text-sm font-bold">!</span>
+                        </div>
                       </div>
-                    );
-                  })}
+                    </div>
+                  )}
                 </div>
               </div>
             ) : (
@@ -394,7 +424,7 @@ export const FloorplanItemViewPage: React.FC = () => {
           <div className="px-4 pb-[calc(env(safe-area-inset-bottom)+0.75rem)] pt-3 bg-gray-50">
             {targetItem && (
               <div className="bg-white/95 backdrop-blur-sm rounded-xl shadow-lg px-3 pb-3 pt-2 mb-3">
-                <p className="text-sm font-semibold text-gray-800">Did you find this item</p>
+                <p className="text-sm font-semibold text-gray-800">Did you find this item?</p>
                 <StockConfirmationButtons
                   item={targetItem}
                   userId={userId}
@@ -415,19 +445,6 @@ export const FloorplanItemViewPage: React.FC = () => {
                         statusOverride: result.statusOverride
                       };
                     });
-
-                    setAllItems((prev) => prev.map((item) => {
-                      if (item.id !== targetItem.id) return item;
-                      return {
-                        ...item,
-                        inStock: inStockFromType,
-                        lastConfirmedAt: result.lastConfirmedAt,
-                        weeklyGreenCount: result.weeklyGreenCount,
-                        weeklyYellowCount: result.weeklyYellowCount,
-                        recentRedCount24h: result.recentRedCount24h,
-                        statusOverride: result.statusOverride
-                      };
-                    }));
                   }}
                 />
               </div>

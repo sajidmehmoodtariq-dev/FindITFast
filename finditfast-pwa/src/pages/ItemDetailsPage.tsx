@@ -247,7 +247,7 @@ export const ItemDetailsPage: React.FC = () => {
 
               {/* Stock Trust System */}
               <div className="mt-4 pt-4 border-t border-gray-100">
-                <h3 className="text-sm font-semibold text-gray-900 mb-3">Did you find this item</h3>
+                <h3 className="text-sm font-semibold text-gray-900 mb-3">Did you find this item?</h3>
                 <StockTrustBadge item={item} />
                 <StockConfirmationButtons
                   item={item}
