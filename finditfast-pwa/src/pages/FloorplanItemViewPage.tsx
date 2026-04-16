@@ -290,44 +290,36 @@ export const FloorplanItemViewPage: React.FC = () => {
         onBack={() => navigate('/')}
       />
       
-      <MobileContent>
-        <div className="min-h-full bg-gray-50 flex flex-col">
-          {/* Target Item Info Banner - Minimized */}
+      <MobileContent className="flex min-h-0 flex-col overflow-hidden p-0">
+        <div className="flex min-h-0 flex-1 flex-col gap-3 px-4 pt-3 pb-[calc(env(safe-area-inset-bottom)+0.75rem)]">
           {targetItem && (
-            <div className="z-20 bg-blue-600 text-white px-4 py-2 shadow-lg mb-3">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center space-x-2">
-                  <span className="text-xs opacity-90">Looking for:</span>
-                  <span className="font-medium text-sm">{targetItem.name}</span>
+            <div className="shrink-0 rounded-3xl bg-white/95 backdrop-blur-sm px-4 py-3 shadow-sm ring-1 ring-slate-200/60">
+              <div className="flex items-center justify-between gap-3">
+                <div className="flex min-w-0 items-center gap-2">
+                  <span className="text-xs font-medium uppercase tracking-[0.2em] text-slate-500">Looking for:</span>
+                  <span className="min-w-0 truncate text-base font-semibold text-slate-900">{targetItem.name}</span>
                 </div>
                 {isBlinking && (
-                  <div className="text-xs bg-blue-500 px-2 py-1 rounded-full">
-                    <span className="animate-pulse">● Blinking</span>
+                  <div className="shrink-0 rounded-full bg-blue-100 px-2.5 py-1 text-xs font-semibold text-blue-700">
+                    Blinking
                   </div>
                 )}
               </div>
             </div>
           )}
 
-          {/* Floorplan Container */}
-          <div 
+          <div
             ref={floorplanRef}
-            className="relative w-full overflow-hidden rounded-xl bg-gray-100"
-            style={{
-              height: targetItem ? '44vh' : '62vh',
-              minHeight: targetItem ? '260px' : '320px',
-              maxHeight: targetItem ? '460px' : '620px'
-            }}
+            className="relative flex-1 min-h-[58vh] overflow-hidden rounded-[28px] bg-gray-100 shadow-sm ring-1 ring-black/5"
             onMouseDown={handleMouseDown}
             onMouseMove={handleMouseMove}
             onMouseUp={handleMouseUp}
             onMouseLeave={handleMouseUp}
             onWheel={handleWheel}
           >
-            {/* Floorplan Image */}
             {!imageError ? (
               <div
-                className="relative w-full h-full flex items-start justify-center"
+                className="relative flex h-full w-full items-start justify-center"
                 style={{
                   cursor: scale > 1 ? (isDragging ? 'grabbing' : 'grab') : 'default'
                 }}
@@ -347,7 +339,7 @@ export const FloorplanItemViewPage: React.FC = () => {
                     ref={imageRef}
                     src={floorplanImageUrl}
                     alt={`Floorplan for ${store.name}`}
-                    className="w-full h-full object-cover transition-transform duration-200 select-none"
+                    className="h-full w-full select-none object-cover transition-transform duration-200"
                     onLoad={handleImageLoad}
                     onError={handleImageError}
                     draggable={false}
@@ -365,25 +357,52 @@ export const FloorplanItemViewPage: React.FC = () => {
                       <div className="relative">
                         {isBlinking && (
                           <>
-                            <div className="absolute inset-0 w-12 h-12 bg-green-500 rounded-full animate-ping opacity-75"
-                                 style={{ transform: 'translate(-50%, -50%)' }}></div>
-                            <div className="absolute inset-0 w-8 h-8 bg-green-600 rounded-full animate-pulse"
-                                 style={{ transform: 'translate(-50%, -50%)' }}></div>
+                            <div className="absolute inset-0 h-12 w-12 rounded-full bg-green-500 opacity-75 animate-ping" style={{ transform: 'translate(-50%, -50%)' }} />
+                            <div className="absolute inset-0 h-8 w-8 rounded-full bg-green-600 animate-pulse" style={{ transform: 'translate(-50%, -50%)' }} />
                           </>
                         )}
-                        <div className="absolute w-12 h-12 bg-green-500 rounded-full border-4 border-white shadow-lg flex items-center justify-center"
-                             style={{ transform: 'translate(-50%, -50%)' }}>
-                          <span className="text-white text-sm font-bold">!</span>
+                        <div className="absolute flex h-12 w-12 items-center justify-center rounded-full border-4 border-white bg-green-500 shadow-lg" style={{ transform: 'translate(-50%, -50%)' }}>
+                          <span className="text-sm font-bold text-white">!</span>
                         </div>
                       </div>
                     </div>
                   )}
                 </div>
+
+                <div className="absolute right-3 bottom-3 z-20 flex flex-col gap-2">
+                  <button
+                    onClick={handleZoomIn}
+                    className="flex h-11 w-11 items-center justify-center rounded-full bg-white/95 shadow-lg ring-1 ring-black/5 hover:bg-white"
+                    aria-label="Zoom in"
+                  >
+                    <svg className="h-5 w-5 text-slate-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                    </svg>
+                  </button>
+                  <button
+                    onClick={handleZoomOut}
+                    className="flex h-11 w-11 items-center justify-center rounded-full bg-white/95 shadow-lg ring-1 ring-black/5 hover:bg-white"
+                    aria-label="Zoom out"
+                  >
+                    <svg className="h-5 w-5 text-slate-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18 12H6" />
+                    </svg>
+                  </button>
+                  <button
+                    onClick={handleResetView}
+                    className="flex h-11 w-11 items-center justify-center rounded-full bg-white/95 shadow-lg ring-1 ring-black/5 hover:bg-white"
+                    aria-label="Reset view"
+                  >
+                    <svg className="h-5 w-5 text-slate-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                    </svg>
+                  </button>
+                </div>
               </div>
             ) : (
-              <div className="flex items-center justify-center h-full">
+              <div className="flex h-full items-center justify-center">
                 <div className="text-center">
-                  <svg className="w-16 h-16 text-gray-400 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <svg className="mx-auto mb-4 h-16 w-16 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
                   </svg>
                   <p className="text-gray-600">Failed to load floorplan image</p>
@@ -392,39 +411,10 @@ export const FloorplanItemViewPage: React.FC = () => {
             )}
           </div>
 
-          {/* Zoom Controls */}
-          <div className="absolute right-4 bottom-4 flex flex-col space-y-2 z-20">
-            <button
-              onClick={handleZoomIn}
-              className="w-12 h-12 bg-white rounded-full shadow-lg flex items-center justify-center hover:bg-gray-50"
-            >
-              <svg className="w-6 h-6 text-gray-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
-              </svg>
-            </button>
-            <button
-              onClick={handleZoomOut}
-              className="w-12 h-12 bg-white rounded-full shadow-lg flex items-center justify-center hover:bg-gray-50"
-            >
-              <svg className="w-6 h-6 text-gray-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18 12H6" />
-              </svg>
-            </button>
-            <button
-              onClick={handleResetView}
-              className="w-12 h-12 bg-white rounded-full shadow-lg flex items-center justify-center hover:bg-gray-50"
-            >
-              <svg className="w-6 h-6 text-gray-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-              </svg>
-            </button>
-          </div>
-
-          {/* Action Section */}
-          <div className="px-4 pb-[calc(env(safe-area-inset-bottom)+0.75rem)] pt-3 bg-gray-50">
-            {targetItem && (
-              <div className="bg-white/95 backdrop-blur-sm rounded-xl shadow-lg px-3 pb-3 pt-2 mb-3">
-                <p className="text-sm font-semibold text-gray-800">Did you find this item?</p>
+          {targetItem ? (
+            <div className="sticky bottom-0 shrink-0 rounded-[28px] bg-white/95 px-4 py-3 shadow-lg ring-1 ring-slate-200/70 backdrop-blur-sm">
+              <div className="space-y-3">
+                <p className="text-sm font-semibold text-slate-800">Did you find this item?</p>
                 <StockConfirmationButtons
                   item={targetItem}
                   userId={userId}
@@ -447,35 +437,43 @@ export const FloorplanItemViewPage: React.FC = () => {
                     });
                   }}
                 />
+
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    onClick={handleItemMissing}
+                    className="flex min-h-12 items-center justify-center gap-2 rounded-full bg-red-50 px-4 py-3 text-sm font-semibold text-red-700 ring-1 ring-red-200 transition-colors hover:bg-red-100"
+                  >
+                    <svg className="h-4 w-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.732-.833-2.5 0L4.314 18.5c-.77.833.192 2.5 1.732 2.5z" />
+                    </svg>
+                    <span>Item Missing</span>
+                  </button>
+
+                  <button
+                    onClick={() => navigate('/')}
+                    className="flex min-h-12 items-center justify-center gap-2 rounded-full bg-slate-100 px-4 py-3 text-sm font-semibold text-slate-700 ring-1 ring-slate-200 transition-colors hover:bg-slate-200"
+                  >
+                    <svg className="h-4 w-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+                    </svg>
+                    <span>Back to Search</span>
+                  </button>
+                </div>
               </div>
-            )}
-
-            <div className={`grid gap-3 ${targetItem ? 'grid-cols-2' : 'grid-cols-1'}`}>
-              {targetItem && (
-                <button
-                  onClick={handleItemMissing}
-                  className="w-full bg-red-600 text-white py-3 px-4 rounded-xl font-medium hover:bg-red-700 transition-colors flex items-center justify-center text-base leading-tight min-h-14"
-                >
-                  <svg className="w-5 h-5 mr-2 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.732-.833-2.5 0L4.314 18.5c-.77.833.192 2.5 1.732 2.5z" />
-                  </svg>
-                  <span className="text-center">Item Missing</span>
-                </button>
-              )}
-
+            </div>
+          ) : (
+            <div className="sticky bottom-0 shrink-0 rounded-[28px] bg-white/95 px-4 py-3 shadow-lg ring-1 ring-slate-200/70 backdrop-blur-sm">
               <button
                 onClick={() => navigate('/')}
-                className="w-full bg-gray-600 text-white py-3 px-4 rounded-xl font-medium hover:bg-gray-700 transition-colors flex items-center justify-center text-base leading-tight min-h-14"
+                className="flex min-h-12 w-full items-center justify-center gap-2 rounded-full bg-slate-100 px-4 py-3 text-sm font-semibold text-slate-700 ring-1 ring-slate-200 transition-colors hover:bg-slate-200"
               >
-                <svg className="w-5 h-5 mr-2 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg className="h-4 w-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
                 </svg>
-                <span className="text-center">Back to Search</span>
+                <span>Back to Search</span>
               </button>
             </div>
-          </div>
-
-
+          )}
         </div>
       </MobileContent>
     </MobileLayout>

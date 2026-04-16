@@ -88,41 +88,47 @@ export const StockConfirmationButtons: React.FC<StockConfirmationButtonsProps> =
     };
 
     const yellowLabel = variant === 'map'
-        ? 'Low Stock – I Saw Only a Few'
+        ? 'Few'
         : 'Low Stock – Only a Few Left';
 
     const redLabel = variant === 'map'
-        ? "Out of Stock – I Couldn't Find It"
+        ? 'None'
         : 'Out of Stock – Not Available';
 
+    const greenLabel = variant === 'map'
+        ? 'Found'
+        : 'In Stock – I Found It';
+
+    const showStatusSummary = variant !== 'map';
+
     return (
-        <div className="flex flex-col gap-2 mt-4 relative">
+        <div className="flex flex-col gap-2 relative">
             {title && <p className="text-sm font-semibold text-gray-700">{title}</p>}
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+            <div className={variant === 'map' ? 'grid grid-cols-3 gap-2' : 'grid grid-cols-1 sm:grid-cols-3 gap-2'}>
                 <button
                     onClick={() => handleConfirm('GREEN')}
                     disabled={isDisabled || isLoading}
-                    className="flex items-center justify-center gap-2 px-3 py-2 bg-green-50 text-green-700 border border-green-200 rounded-md font-medium text-sm hover:bg-green-100 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                    className={`flex items-center justify-center gap-2 border rounded-full font-semibold disabled:opacity-50 disabled:cursor-not-allowed transition-colors ${variant === 'map' ? 'px-3 py-3 bg-green-100 text-green-800 border-green-200 text-[0.82rem] leading-tight' : 'px-3 py-2 bg-green-50 text-green-700 border-green-200 text-sm hover:bg-green-100'}`}
                 >
-                    <span>🟢</span> In Stock – I Found It
+                    <span>🟢</span> {greenLabel}
                 </button>
                 <button
                     onClick={() => handleConfirm('YELLOW')}
                     disabled={isDisabled || isLoading}
-                    className="flex items-center justify-center gap-2 px-3 py-2 bg-yellow-50 text-yellow-700 border border-yellow-200 rounded-md font-medium text-sm hover:bg-yellow-100 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                    className={`flex items-center justify-center gap-2 border rounded-full font-semibold disabled:opacity-50 disabled:cursor-not-allowed transition-colors ${variant === 'map' ? 'px-3 py-3 bg-amber-100 text-amber-800 border-amber-200 text-[0.82rem] leading-tight' : 'px-3 py-2 bg-yellow-50 text-yellow-700 border-yellow-200 text-sm hover:bg-yellow-100'}`}
                 >
                     <span>🟡</span> {yellowLabel}
                 </button>
                 <button
                     onClick={() => handleConfirm('RED')}
                     disabled={isDisabled || isLoading}
-                    className="flex items-center justify-center gap-2 px-3 py-2 bg-red-50 text-red-700 border border-red-200 rounded-md font-medium text-sm hover:bg-red-100 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                    className={`flex items-center justify-center gap-2 border rounded-full font-semibold disabled:opacity-50 disabled:cursor-not-allowed transition-colors ${variant === 'map' ? 'px-3 py-3 bg-red-100 text-red-800 border-red-200 text-[0.82rem] leading-tight' : 'px-3 py-2 bg-red-50 text-red-700 border-red-200 text-sm hover:bg-red-100'}`}
                 >
                     <span>🔴</span> {redLabel}
                 </button>
             </div>
 
-            {(reinforcementMessage || todayCountMessage) && (
+            {showStatusSummary && (reinforcementMessage || todayCountMessage) && (
                 <div className="rounded-md border border-green-200 bg-green-50 px-3 py-2 text-sm text-green-800">
                     {localStatusLabel && <p className="font-semibold">Status now: {localStatusLabel}</p>}
                     {localStatusLabel && <p className="text-green-700">Just confirmed</p>}
