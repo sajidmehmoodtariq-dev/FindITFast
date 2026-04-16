@@ -7,6 +7,7 @@ import { ReportProblemModal } from '../components/reports/ReportProblemModal';
 import { StockTrustBadge } from '../components/StockTrustBadge';
 import { StockConfirmationButtons } from '../components/StockConfirmationButtons';
 import { useAuth } from '../contexts/AuthContext';
+import { analyticsService } from '../services/analyticsService';
 import type { SearchResult } from '../types/search';
 
 export const ItemDetailsPage: React.FC = () => {
@@ -31,6 +32,7 @@ export const ItemDetailsPage: React.FC = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [showReportModal, setShowReportModal] = useState(false);
+  const [hasLoggedView, setHasLoggedView] = useState(false);
 
   useEffect(() => {
     const loadItemDetails = async () => {
@@ -63,6 +65,7 @@ export const ItemDetailsPage: React.FC = () => {
         };
 
         setItem(searchResult);
+        setHasLoggedView(false);
       } catch (err) {
         console.error('Error loading item details:', err);
         setError('Failed to load item information');
@@ -73,6 +76,25 @@ export const ItemDetailsPage: React.FC = () => {
 
     loadItemDetails();
   }, [itemId, storeId]);
+
+  useEffect(() => {
+    if (!item || !storeId || hasLoggedView) {
+      return;
+    }
+
+    void analyticsService.logSearch({
+      userId: userId || undefined,
+      searchQuery: item.name,
+      resultsCount: 1,
+      storeId,
+      storeName: item.store.name
+    }, {
+      source: 'search',
+      dedupeWindowMs: 0
+    });
+
+    setHasLoggedView(true);
+  }, [item, storeId, hasLoggedView, userId]);
 
   const handleDirections = () => {
     if (!item?.store) return;

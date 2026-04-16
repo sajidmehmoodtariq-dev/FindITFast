@@ -106,6 +106,12 @@ const shouldLogSearch = (normalizedQuery: string, deviceId: string, dedupeWindow
   return true;
 };
 
+const compactObject = <T extends Record<string, any>>(value: T): T => {
+  return Object.fromEntries(
+    Object.entries(value).filter(([, fieldValue]) => fieldValue !== undefined)
+  ) as T;
+};
+
 export const analyticsService = {
   // Log search activity
   logSearch: async (
@@ -127,7 +133,7 @@ export const analyticsService = {
         return { logged: false };
       }
 
-      await addDoc(collection(db, 'searchLogs'), {
+      const payload = compactObject({
         ...searchData,
         searchQuery: normalizedQuery,
         timestamp: new Date(),
@@ -135,6 +141,17 @@ export const analyticsService = {
         deviceId,
         source
       });
+
+      if (payload.location && typeof payload.location === 'object') {
+        const compactedLocation = compactObject(payload.location as { latitude?: number; longitude?: number });
+        if (compactedLocation.latitude !== undefined && compactedLocation.longitude !== undefined) {
+          payload.location = compactedLocation as { latitude: number; longitude: number };
+        } else {
+          delete payload.location;
+        }
+      }
+
+      await addDoc(collection(db, 'searchLogs'), payload);
 
       return { logged: true };
     } catch (error) {
