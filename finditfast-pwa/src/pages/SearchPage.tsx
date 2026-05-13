@@ -128,7 +128,7 @@ export const SearchPage: React.FC = () => {
       {/* Header */}
       <div className="bg-white/95 backdrop-blur-lg border-b border-slate-200/50 sticky top-0 z-40 pt-safe-top">
         <div className="bg-gradient-to-r from-blue-600 to-purple-600 px-4 py-3 flex items-center justify-between">
-          <h1 className="text-lg font-medium text-white">FindItFast</h1>
+          <h1 className="text-lg font-medium text-white">FinditFast</h1>
           <button
             onClick={() => navigate('/admin/auth')}
             className="p-2 rounded-2xl text-white/80 hover:text-white hover:bg-white/10 transition-colors"

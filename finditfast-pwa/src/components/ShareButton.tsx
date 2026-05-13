@@ -33,20 +33,20 @@ const ShareButton: React.FC<ShareButtonProps> = ({
         // Sharing specific item
         shareData = {
           title: `${itemName} at ${storeName}`,
-          text: `Found "${itemName}" at ${storeName}${itemLocation ? ` in ${itemLocation}` : ''} using FindItFast!`,
+          text: `Found "${itemName}" at ${storeName}${itemLocation ? ` in ${itemLocation}` : ''} using FinditFast!`,
           url: `${window.location.origin}${storeId ? `/store/${storeId}` : ''}`
         };
       } else if (storeName) {
         // Sharing store
         shareData = {
-          title: `${storeName} on FindItFast`,
-          text: `Check out ${storeName} on FindItFast - find items quickly with interactive floorplans!`,
+          title: `${storeName} on FinditFast`,
+          text: `Check out ${storeName} on FinditFast - find items quickly with interactive floorplans!`,
           url: `${window.location.origin}${storeId ? `/store/${storeId}` : ''}`
         };
       } else {
         // Sharing app
         shareData = {
-          title: 'FindItFast - Store Item Locator',
+          title: 'FinditFast - Store Item Locator',
           text: 'Find items quickly in stores with interactive floorplans. Navigate to stores and locate products instantly!',
           url: window.location.origin
         };

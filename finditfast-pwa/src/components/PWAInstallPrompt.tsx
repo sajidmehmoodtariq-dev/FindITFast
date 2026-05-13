@@ -74,7 +74,7 @@ const PWAInstallPrompt: React.FC = () => {
       }
     } else {
       // Show manual installation instructions
-      const instructions = `Install FindItFast as an App:
+      const instructions = `Install FinditFast as an App:
 
 📱 MOBILE:
 • Chrome/Edge: Menu → "Add to Home Screen"
@@ -114,7 +114,7 @@ const PWAInstallPrompt: React.FC = () => {
             </svg>
           </div>
           <div className="flex-1 min-w-0">
-            <h3 className="font-semibold text-sm leading-tight">Install FindItFast</h3>
+            <h3 className="font-semibold text-sm leading-tight">Install FinditFast</h3>
             <p className="text-xs opacity-90 mt-1 leading-tight">
               Get faster access and work offline
             </p>

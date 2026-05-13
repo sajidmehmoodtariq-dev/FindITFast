@@ -65,7 +65,7 @@ const PWAStatus: React.FC = () => {
             <div className="flex-1">
               <h3 className="font-semibold text-sm">Update Available</h3>
               <p className="text-xs opacity-90 mt-1">
-                A new version of FindItFast is ready
+                A new version of FinditFast is ready
               </p>
             </div>
             <div className="flex gap-2 ml-4">

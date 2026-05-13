@@ -3,5 +3,5 @@
   <rect width="512" height="512" fill="#3B82F6"/>
   <circle cx="204.8" cy="204.8" r="76.8" fill="none" stroke="white" stroke-width="20.48"/>
   <line x1="266.24" y1="266.24" x2="358.4" y2="358.4" stroke="white" stroke-width="20.48"/>
-  <text x="256" y="435.2" font-family="Arial" font-size="30.72" fill="white" text-anchor="middle">FindItFast</text>
+  <text x="256" y="435.2" font-family="Arial" font-size="30.72" fill="white" text-anchor="middle">FinditFast</text>
 </svg>

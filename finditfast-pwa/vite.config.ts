@@ -18,8 +18,8 @@ export default defineConfig({
       },
       includeAssets: ['favicon.ico', 'apple-touch-icon.png', 'masked-icon.svg'],
       manifest: {
-        name: 'FindItFast - Store Item Locator',
-        short_name: 'FindItFast',
+        name: 'FinditFast - Store Item Locator',
+        short_name: 'FinditFast',
         description: 'Find items quickly in stores with interactive floorplans. Navigate to stores and locate products instantly.',
         theme_color: '#374151',
         background_color: '#FFFFFF',

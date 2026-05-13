@@ -183,7 +183,7 @@ export const ItemMissingReport: React.FC<ItemMissingReportProps> = ({
         {/* Help Text */}
         <div className="mt-4 text-center">
           <p className="text-xs text-gray-500">
-            Your report helps keep FindItFast accurate for everyone
+            Your report helps keep FinditFast accurate for everyone
           </p>
         </div>
       </div>

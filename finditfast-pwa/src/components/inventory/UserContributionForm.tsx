@@ -208,7 +208,7 @@ export const UserContributionForm: React.FC<UserContributionFormProps> = ({
         {/* Help Text */}
         <div className="mt-4 text-center">
           <p className="text-xs text-gray-500">
-            Your contribution helps make FindItFast better for everyone
+            Your contribution helps make FinditFast better for everyone
           </p>
         </div>
       </div>

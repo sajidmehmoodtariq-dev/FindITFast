@@ -7,5 +7,5 @@
   <line x1="260" y1="260" x2="350" y2="350" stroke="white" stroke-width="20"/>
   
   <!-- Text -->
-  <text x="256" y="420" font-family="Arial, sans-serif" font-size="32" fill="white" text-anchor="middle" font-weight="bold">FindItFast</text>
+  <text x="256" y="420" font-family="Arial, sans-serif" font-size="32" fill="white" text-anchor="middle" font-weight="bold">FinditFast</text>
 </svg>

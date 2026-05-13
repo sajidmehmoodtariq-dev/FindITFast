@@ -78,7 +78,7 @@ async function createEnhancedInventoryDemo() {
         status: 'approved',
         requestedAt: timestamp,
         approvedAt: timestamp,
-        approvedBy: 'admin@finditfast.com'
+        approvedBy: 'finditfasthq@gmail.com'
       });
       
       console.log(`✅ Created store request: ${store.name} (${requestRef.id})`);

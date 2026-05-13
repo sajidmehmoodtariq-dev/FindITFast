@@ -14,7 +14,7 @@ const LoadingScreen: React.FC = () => {
         {!imageError ? (
           <img 
             src="/applogo.png" 
-            alt="FindItFast Logo" 
+            alt="FinditFast Logo" 
             className="w-full h-full object-cover rounded-full drop-shadow-2xl border-4 border-white/30"
             onError={handleImageError}
           />
@@ -34,7 +34,7 @@ const LoadingScreen: React.FC = () => {
 
       {/* App Title */}
       <h1 className="text-4xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent mb-3 tracking-tight">
-        FindItFast
+        FinditFast
       </h1>
 
       {/* App Tagline */}

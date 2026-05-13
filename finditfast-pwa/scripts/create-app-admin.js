@@ -24,7 +24,7 @@ async function createAppAdmin() {
     const auth = getAuth(app);
     const db = getFirestore(app);
     
-    const adminEmail = (process.env.ADMIN_EMAIL || 'admin@finditfast.com').trim().toLowerCase();
+    const adminEmail = (process.env.ADMIN_EMAIL || 'finditfasthq@gmail.com').trim().toLowerCase();
     const adminPassword = process.env.ADMIN_PASSWORD || 'AdminPassword123!';
     const adminEmails = (process.env.ADMIN_EMAILS || adminEmail)
       .split(',')

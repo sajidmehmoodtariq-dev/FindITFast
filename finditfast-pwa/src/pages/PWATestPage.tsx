@@ -145,7 +145,7 @@ const PWATestPage: React.FC = () => {
         <div className="space-y-3 text-sm text-gray-600">
           <div>
             <h3 className="font-medium text-gray-900">Chrome/Edge (Android/Desktop):</h3>
-            <p>Look for the install icon in the address bar or use the menu → "Install FindItFast"</p>
+            <p>Look for the install icon in the address bar or use the menu → "Install FinditFast"</p>
           </div>
           
           <div>

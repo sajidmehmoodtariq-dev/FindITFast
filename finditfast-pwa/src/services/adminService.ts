@@ -17,7 +17,7 @@ export const AdminService = {
 
       const normalizedEmail = email?.trim().toLowerCase();
       if (!normalizedEmail || !appConfigDoc.exists()) {
-        return normalizedEmail === 'admin@finditfast.com';
+        return normalizedEmail === 'finditfasthq@gmail.com';
       }
 
       const config = appConfigDoc.data();
@@ -35,7 +35,7 @@ export const AdminService = {
         }
       }
 
-      return allowedEmails.has(normalizedEmail) || normalizedEmail === 'admin@finditfast.com';
+      return allowedEmails.has(normalizedEmail) || normalizedEmail === 'finditfasthq@gmail.com';
     } catch (error) {
       console.error('Error checking admin access:', error);
       return false;

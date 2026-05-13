@@ -5,5 +5,5 @@
   <circle cx="200" cy="200" r="80" fill="none" stroke="white" stroke-width="20"/>
   <line x1="260" y1="260" x2="350" y2="350" stroke="white" stroke-width="20"/>
   <!-- Text -->
-  <text x="256" y="420" font-family="Arial" font-size="40" fill="white" text-anchor="middle">FindItFast</text>
+  <text x="256" y="420" font-family="Arial" font-size="40" fill="white" text-anchor="middle">FinditFast</text>
 </svg>
