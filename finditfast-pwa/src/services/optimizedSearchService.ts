@@ -97,33 +97,74 @@ class OptimizedSearchService {
   }
 
   private sortSearchResults(results: SearchResult[], query: string): SearchResult[] {
-    return results.sort((a, b) => {
-      // Prioritize verified items
-      if (a.verified && !b.verified) return -1;
-      if (!a.verified && b.verified) return 1;
+    const q = query.toLowerCase().trim();
 
-      // Prioritize exact matches
-      const aExactMatch = a.name.toLowerCase() === query.toLowerCase();
-      const bExactMatch = b.name.toLowerCase() === query.toLowerCase();
-      if (aExactMatch && !bExactMatch) return -1;
-      if (!aExactMatch && bExactMatch) return 1;
+    // Minimum relevance threshold - results scoring below this will be hidden
+    const MIN_RELEVANCE = 25; // tuned: exact matches score >> threshold
 
-      // Prioritize items that start with the query
-      const aStartsWith = a.name.toLowerCase().startsWith(query.toLowerCase());
-      const bStartsWith = b.name.toLowerCase().startsWith(query.toLowerCase());
-      if (aStartsWith && !bStartsWith) return -1;
-      if (!aStartsWith && bStartsWith) return 1;
+    const scoreFor = (r: SearchResult): number => {
+      let score = 0;
+      const name = (r.name || '').toLowerCase();
+      const category = (r.category || '').toLowerCase();
+      const desc = (r.description || '').toLowerCase();
 
-      // Sort by distance if available
-      if (a.distance && b.distance) {
-        return a.distance - b.distance;
+      // Exact match (highest weight)
+      if (name === q) score += 100;
+
+      // Starts with (high)
+      if (name.startsWith(q)) score += 60;
+
+      // Partial contains in name (medium)
+      if (name.includes(q) && !name.startsWith(q) && name !== q) score += 35;
+
+      // Category match (lower)
+      if (category && category.includes(q)) score += 20;
+
+      // Description / OCR match (very low)
+      if (desc && desc.includes(q)) score += 8;
+
+      // Token matches: each token match in name adds small bonus
+      const tokens = q.split(/\s+/).filter(Boolean);
+      for (const t of tokens) {
+        if (t.length <= 1) continue;
+        if (name.split(/[^a-z0-9]+/).includes(t)) score += 6;
       }
-      if (a.distance && !b.distance) return -1;
-      if (!a.distance && b.distance) return 1;
 
-      // Finally, sort alphabetically
-      return a.name.localeCompare(b.name);
+      // Penalize items with many reports slightly
+      score -= Math.min((r.reportCount || 0) * 2, 20);
+
+      // Boost nearby items a little
+      if (r.distance !== undefined && r.distance < 1) score += 5;
+
+      return score;
+    };
+
+    // Attach computed score and filter by threshold
+    const scored = results.map(r => ({ r, score: scoreFor(r) }))
+      .filter(s => s.score >= MIN_RELEVANCE);
+
+    // Sort by score desc, then distance asc, then verified then name
+    scored.sort((a, b) => {
+      if (b.score !== a.score) return b.score - a.score;
+
+      // Prefer closer stores
+      if (a.r.distance !== undefined && b.r.distance !== undefined) {
+        if (a.r.distance !== b.r.distance) return a.r.distance - b.r.distance;
+      } else if (a.r.distance !== undefined) {
+        return -1;
+      } else if (b.r.distance !== undefined) {
+        return 1;
+      }
+
+      // Prefer verified items
+      if (a.r.verified && !b.r.verified) return -1;
+      if (!a.r.verified && b.r.verified) return 1;
+
+      // Fallback alphabetical
+      return a.r.name.localeCompare(b.r.name);
     });
+
+    return scored.map(s => s.r);
   }
 
   /**

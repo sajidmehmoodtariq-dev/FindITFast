@@ -5,7 +5,7 @@
 
 import React, { useState } from 'react';
 import { Timestamp } from 'firebase/firestore';
-import { ReportService } from '../../services/firestoreService';
+import { ReportService, ItemService } from '../../services/firestoreService';
 import type { Item, Store } from '../../types';
 
 interface ReportProblemModalProps {
@@ -103,6 +103,19 @@ export const ReportProblemModal: React.FC<ReportProblemModalProps> = ({
       }
 
       await ReportService.create(reportData);
+
+      // If user submitted a corrected price, update the item record as well
+      if (selectedType === 'price_incorrect' && correctPrice.trim()) {
+        try {
+          await ItemService.update(item.id, {
+            price: correctPrice.trim(),
+            updatedAt: Timestamp.now()
+          });
+        } catch (err) {
+          console.error('Failed to update item price after report:', err);
+          // Don't block the report submit - show a non-fatal warning
+        }
+      }
 
       setSuccess(true);
       setTimeout(() => {

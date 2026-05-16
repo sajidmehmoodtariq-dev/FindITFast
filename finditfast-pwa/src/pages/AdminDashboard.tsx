@@ -1068,7 +1068,27 @@ export const AdminDashboard: React.FC = () => {
       try {
         setOwnersLoading(true);
         
-        // Get all store requests to associate with owners
+        // Phase 1: Get ALL store owners from storeOwners collection
+        const ownersSnapshot = await getDocs(collection(db, 'storeOwners'));
+        const ownerMap = new Map();
+        
+        ownersSnapshot.docs.forEach(doc => {
+          const data = doc.data();
+          const ownerId = data.uid || doc.id;
+          ownerMap.set(ownerId, {
+            ownerId,
+            ownerName: data.name || 'Unknown Owner',
+            ownerEmail: data.email || '',
+            requests: [],
+            approvedStores: 0,
+            pendingRequests: 0,
+            rejectedRequests: 0,
+            totalRequests: 0,
+            lastRequest: null
+          });
+        });
+
+        // Phase 2: Get all store requests to associate with owners
         const requestsSnapshot = await getDocs(collection(db, 'storeRequests'));
         const requestsData = requestsSnapshot.docs.map(doc => {
           const data = doc.data();
@@ -1099,29 +1119,43 @@ export const AdminDashboard: React.FC = () => {
         
         setRecentActions(recentActions);
         
-        // Group requests by owner and create owner summary
-        const ownerMap = new Map();
-        
+        // Phase 3: Enrich owner data with request information
         requestsData.forEach(request => {
           const ownerId = (request as any).ownerId;
-          if (!ownerId) return;
+          const ownerEmail = (request as any).ownerEmail;
           
-          if (!ownerMap.has(ownerId)) {
-            ownerMap.set(ownerId, {
-              ownerId,
+          // Try to match by UID first, then by email
+          let owner = ownerMap.get(ownerId);
+          
+          if (!owner && ownerEmail) {
+            // Find owner by email if UID didn't match
+            for (const value of ownerMap.values()) {
+              if ((value as any).ownerEmail === ownerEmail) {
+                owner = value;
+                break;
+              }
+            }
+          }
+          
+          // If owner not found, create a new entry from request data
+          if (!owner) {
+            owner = {
+              ownerId: ownerId || ownerEmail || 'unknown',
               ownerName: (request as any).ownerName || 'Unknown Owner',
-              ownerEmail: (request as any).ownerEmail || '',
+              ownerEmail: ownerEmail || '',
               requests: [],
               approvedStores: 0,
               pendingRequests: 0,
               rejectedRequests: 0,
-              totalRequests: 0
-            });
+              totalRequests: 0,
+              lastRequest: null
+            };
+            ownerMap.set(owner.ownerId, owner);
           }
           
-          const owner = ownerMap.get(ownerId);
           owner.requests.push(request);
           owner.totalRequests++;
+          owner.lastRequest = (request as any).submittedAt || (request as any).approvedAt || (request as any).rejectedAt;
           
           if ((request as any).status === 'approved') {
             owner.approvedStores++;
@@ -1132,9 +1166,13 @@ export const AdminDashboard: React.FC = () => {
           }
         });
         
-        const ownersArray = Array.from(ownerMap.values()).sort((a, b) => 
-          b.totalRequests - a.totalRequests
-        );
+        const ownersArray = Array.from(ownerMap.values()).sort((a, b) => {
+          // Sort by total requests descending, then by name
+          if (b.totalRequests !== a.totalRequests) {
+            return b.totalRequests - a.totalRequests;
+          }
+          return (a as any).ownerName.localeCompare((b as any).ownerName);
+        });
         
         setStoreOwners(ownersArray);
       } catch (error) {
@@ -1383,8 +1421,8 @@ export const AdminDashboard: React.FC = () => {
                   </div>
                   
                   <div>
-                    <h4 className="text-sm font-medium text-gray-500 mb-1">Owner ID</h4>
-                    <p className="text-xs text-gray-700 break-all">{selectedRequest.ownerId}</p>
+                    <h4 className="text-sm font-medium text-gray-500 mb-1">Owner Name</h4>
+                    <p className="text-xs text-gray-700 break-all">{selectedRequest.ownerName || selectedRequest.ownerEmail || 'Unknown Owner'}</p>
                   </div>
                   
                   {selectedRequest.ownerNotes && (
@@ -2141,8 +2179,10 @@ export const AdminDashboard: React.FC = () => {
                                 <p className="text-sm text-gray-900">{store.address}</p>
                               </div>
                               <div>
-                                <p className="text-sm text-gray-500 mb-1">Owner ID</p>
-                                <p className="text-xs text-gray-700 break-all">{store.ownerId}</p>
+                                <p className="text-sm text-gray-500 mb-1">Owner Name</p>
+                                <p className="text-xs text-gray-700 break-all">
+                                  {store.ownerName || storeOwners.find((owner) => owner.ownerId === store.ownerId || owner.ownerEmail === store.ownerEmail)?.ownerName || 'Unknown Owner'}
+                                </p>
                               </div>
                               <div>
                                 <p className="text-sm text-gray-500 mb-1">Created</p>
@@ -2245,7 +2285,7 @@ export const AdminDashboard: React.FC = () => {
                         <div className="flex-1">
                           <h3 className="font-semibold text-lg text-gray-900">{owner.ownerName}</h3>
                           <p className="text-gray-600">{owner.ownerEmail}</p>
-                          <p className="text-xs text-gray-400 mt-1">ID: {owner.ownerId}</p>
+                          <p className="text-xs text-gray-400 mt-1">Owner: {owner.ownerName}</p>
                         </div>
                         <div className="flex items-center space-x-3">
                           <div className="text-right">

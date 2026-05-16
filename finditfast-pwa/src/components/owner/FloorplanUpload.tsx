@@ -17,7 +17,7 @@ export const FloorplanUpload: React.FC<FloorplanUploadProps> = ({
   onUploadSuccess,
   onUploadError,
 }) => {
-  const { user, ownerProfile } = useAuth();
+  const { user, ownerProfile, refreshOwnerProfile } = useAuth();
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [isUploading, setIsUploading] = useState(false);
@@ -93,8 +93,8 @@ export const FloorplanUpload: React.FC<FloorplanUploadProps> = ({
           
           const storeRequestsRef = collection(db, 'storeRequests');
           const q = query(
-            storeRequestsRef, 
-            where('requestedBy', '==', user.email),
+            storeRequestsRef,
+            where('requestedBy', '==', user.uid),
             where('status', '==', 'approved')
           );
           
@@ -118,7 +118,6 @@ export const FloorplanUpload: React.FC<FloorplanUploadProps> = ({
             console.log('✅ FloorplanUpload: Owner profile created successfully');
             
             // Refresh the auth context
-            const { refreshOwnerProfile } = useAuth();
             await refreshOwnerProfile();
             
             console.log('✅ FloorplanUpload: Owner profile auto-created and refreshed');

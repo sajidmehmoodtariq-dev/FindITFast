@@ -49,19 +49,32 @@ export const FloorplanManager: React.FC = () => {
         console.warn('Could not create store owner record');
       }
 
-      // Get approved store requests
-      const requestsQuery = query(
-        collection(db, 'storeRequests'),
-        where('requestedBy', '==', user.uid),
-        where('status', '==', 'approved')
-      );
-      
-      const requestsSnapshot = await getDocs(requestsQuery);
-      const approvedRequestsData = requestsSnapshot.docs.map(doc => ({
+      // Get approved store requests using both UID and email-backed records.
+      const requestQueries = [
+        query(
+          collection(db, 'storeRequests'),
+          where('requestedBy', '==', user.uid),
+          where('status', '==', 'approved')
+        )
+      ];
+
+      if (user.email) {
+        requestQueries.push(
+          query(
+            collection(db, 'storeRequests'),
+            where('requestedBy', '==', user.email),
+            where('status', '==', 'approved')
+          )
+        );
+      }
+
+      const requestsSnapshots = await Promise.all(requestQueries.map(q => getDocs(q)));
+      const approvedRequestsData = requestsSnapshots.flatMap(snapshot => snapshot.docs.map(doc => ({
         id: doc.id,
         ...doc.data(),
         approvedAt: doc.data().approvedAt?.toDate() || new Date(),
-      })) as ApprovedStoreRequest[];
+      })) as ApprovedStoreRequest[])
+      .filter((request, index, array) => array.findIndex(other => other.id === request.id) === index);
 
       console.log('Found approved requests:', approvedRequestsData.length);
       console.log('Approved requests data:', approvedRequestsData.map(r => ({ 
@@ -102,7 +115,7 @@ export const FloorplanManager: React.FC = () => {
         // Try to get store plans, with better error handling
         try {
           console.log('Attempting to load store plans...');
-          const storePlansData = await StorePlanService.getByOwner(user.uid);
+            const storePlansData = await StorePlanService.getByOwner(user.uid);
           console.log('Store plans loaded successfully:', storePlansData.length);
           console.log('Store plans data:', storePlansData);
           setStorePlans(storePlansData);
@@ -134,7 +147,12 @@ export const FloorplanManager: React.FC = () => {
   };
 
   const getStorePlansForStore = (storeId: string): StorePlan[] => {
-    const plans = storePlans.filter(plan => plan.storeId === storeId);
+    const normalizedStoreId = storeId.replace(/^(temp_|virtual_)/, '');
+    const plans = storePlans.filter(plan => {
+      const planStoreId = plan.storeId || '';
+      const normalizedPlanStoreId = planStoreId.replace(/^(temp_|virtual_)/, '');
+      return planStoreId === storeId || normalizedPlanStoreId === normalizedStoreId;
+    });
     console.log(`🔍 Getting store plans for store ${storeId}:`, plans.length);
     console.log('Available store plans:', storePlans.map(p => ({ id: p.id, storeId: p.storeId, ownerId: p.ownerId })));
     return plans;

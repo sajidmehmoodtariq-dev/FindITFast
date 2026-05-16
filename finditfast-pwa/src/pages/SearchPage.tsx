@@ -1,9 +1,11 @@
 import React, { useState, useCallback, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { doc, onSnapshot, getDoc } from 'firebase/firestore';
 import { SearchResults } from '../components/search';
 import { MobileLayout, MobileContent } from '../components/common/MobileLayout';
 import { LazyLoad } from '../components/performance/LazyLoading';
 import { SearchService } from '../services/searchService';
+import { db } from '../services/firebase';
 import { useGeolocation } from '../hooks/useGeolocation';
 import type { SearchResult, SearchState } from '../types/search';
 
@@ -36,6 +38,7 @@ export const SearchPage: React.FC = () => {
     hasSearched: false
   });
   const [showLocationPrompt, setShowLocationPrompt] = useState(false);
+  const [homeBannerText, setHomeBannerText] = useState('');
   
   // Geolocation hook for distance calculations
   const geolocation = useGeolocation();
@@ -49,6 +52,42 @@ export const SearchPage: React.FC = () => {
       setShowLocationPrompt(true);
     }
   }, [geolocation.permission, geolocation.userLocation, showLocationPrompt]);
+
+  // Load banner immediately on mount, then listen for real-time updates
+  useEffect(() => {
+    const configRef = doc(db, 'appConfig', 'public');
+    let unsubscribe: (() => void) | null = null;
+
+    // Phase 1: Load immediately for instant display
+    getDoc(configRef)
+      .then((snapshot) => {
+        if (!snapshot.exists()) {
+          setHomeBannerText('');
+          return;
+        }
+        const data = snapshot.data();
+        setHomeBannerText(typeof data.homeBannerText === 'string' ? data.homeBannerText.trim() : '');
+      })
+      .catch(() => {
+        setHomeBannerText('');
+      });
+
+    // Phase 2: Set up real-time listener for updates
+    unsubscribe = onSnapshot(configRef, (snapshot) => {
+      if (!snapshot.exists()) {
+        setHomeBannerText('');
+        return;
+      }
+      const data = snapshot.data();
+      setHomeBannerText(typeof data.homeBannerText === 'string' ? data.homeBannerText.trim() : '');
+    }, () => {
+      setHomeBannerText('');
+    });
+
+    return () => {
+      if (unsubscribe) unsubscribe();
+    };
+  }, []);
 
 
 
@@ -204,7 +243,14 @@ export const SearchPage: React.FC = () => {
 
           {/* Store Owners Section - Hidden during search */}
           {!searchInput.trim() && (
-            <div className="px-4 mb-6">
+            <div className="px-4 mb-6 space-y-4">
+              {homeBannerText && (
+                <div className="bg-gradient-to-br from-slate-900 via-slate-800 to-slate-700 rounded-2xl p-5 shadow-xl border border-slate-700">
+                  <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-300 mb-2">Announcement</p>
+                  <p className="text-sm leading-relaxed text-white/90">{homeBannerText}</p>
+                </div>
+              )}
+
               <div className="bg-gradient-to-br from-white to-green-50 rounded-2xl p-5 shadow-lg border border-green-100">
                 <div className="flex items-center mb-4">
                   <div className="w-8 h-8 bg-gradient-to-r from-green-500 to-emerald-500 rounded-2xl flex items-center justify-center mr-3">
