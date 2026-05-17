@@ -214,7 +214,7 @@ export const TouchArea: React.FC<TouchAreaProps> = ({
       className={`
         ${sizeClasses[size]}
         ${variantClasses[variant]}
-        flex items-center justify-center cursor-pointer
+        ${variant === 'card' ? 'block text-left' : 'flex items-center justify-center'} cursor-pointer
         transition-all duration-200 touch-manipulation
         ${disabled ? 'opacity-50 cursor-not-allowed' : ''}
         ${className}

@@ -7,18 +7,20 @@ service cloud.firestore {
     }
 
     function isConfiguredAdminEmail() {
-      return exists(/databases/$(database)/documents/appConfig/public) &&
-        (
-          (
-            get(/databases/$(database)/documents/appConfig/public).data.adminEmail is string &&
-            request.auth.token.email == get(/databases/$(database)/documents/appConfig/public).data.adminEmail
-          ) ||
-          (
-            get(/databases/$(database)/documents/appConfig/public).data.adminEmails is list &&
-            get(/databases/$(database)/documents/appConfig/public).data.adminEmails.hasAny([request.auth.token.email])
-          ) ||
-          request.auth.token.email == 'admin@finditfast.com'
-        );
+      return request.auth.token.email == 'admin@finditfast.com' ||
+             request.auth.token.email == 'finditfasthq@gmail.com' ||
+             (exists(/databases/$(database)/documents/appConfig/public) &&
+              (
+                (
+                  get(/databases/$(database)/documents/appConfig/public).data.adminEmail is string &&
+                  request.auth.token.email == get(/databases/$(database)/documents/appConfig/public).data.adminEmail
+                ) ||
+                (
+                  get(/databases/$(database)/documents/appConfig/public).data.adminEmails is list &&
+                  get(/databases/$(database)/documents/appConfig/public).data.adminEmails.hasAny([request.auth.token.email])
+                )
+              )
+             );
     }
     
     function isAdmin() {

@@ -156,10 +156,19 @@ export class SearchService {
    */
   private static rankSearchResults(results: RankedSearchResult[]): RankedSearchResult[] {
     return results.sort((a, b) => {
-      // FIRST PRIORITY: Distance (if available) - nearest items first
+      // FIRST PRIORITY: relevance score — exact/close name matches always win
+      if (a.relevanceScore !== b.relevanceScore) {
+        return b.relevanceScore - a.relevanceScore;
+      }
+
+      // SECOND PRIORITY: verified items
+      if (a.verified && !b.verified) return -1;
+      if (!a.verified && b.verified) return 1;
+
+      // THIRD PRIORITY: Distance (if available) - nearest items first among equal results
       if (a.distance !== undefined && b.distance !== undefined) {
         const distanceDiff = a.distance - b.distance;
-        if (Math.abs(distanceDiff) > 0.001) { // Only sort by distance if difference is significant
+        if (Math.abs(distanceDiff) > 0.001) {
           return distanceDiff;
         }
       }
@@ -167,15 +176,6 @@ export class SearchService {
       // If one has distance and other doesn't, prioritize the one with distance
       if (a.distance !== undefined && b.distance === undefined) return -1;
       if (a.distance === undefined && b.distance !== undefined) return 1;
-
-      // SECOND PRIORITY: relevance score
-      if (a.relevanceScore !== b.relevanceScore) {
-        return b.relevanceScore - a.relevanceScore;
-      }
-
-      // THIRD PRIORITY: verified items
-      if (a.verified && !b.verified) return -1;
-      if (!a.verified && b.verified) return 1;
 
       // FOURTH PRIORITY: fewer reports (more reliable)
       if (a.reportCount !== b.reportCount) {
@@ -186,7 +186,7 @@ export class SearchService {
       if (a.verified && b.verified) {
         const aTime = a.verifiedAt?.toDate?.()?.getTime() || 0;
         const bTime = b.verifiedAt?.toDate?.()?.getTime() || 0;
-        return bTime - aTime; // More recent first
+        return bTime - aTime;
       }
 
       // FINALLY: alphabetical by item name

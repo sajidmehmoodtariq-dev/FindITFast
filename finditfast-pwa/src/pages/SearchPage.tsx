@@ -39,6 +39,7 @@ export const SearchPage: React.FC = () => {
   });
   const [showLocationPrompt, setShowLocationPrompt] = useState(false);
   const [homeBannerText, setHomeBannerText] = useState('');
+  const [bannerLoaded, setBannerLoaded] = useState(false);
   
   // Geolocation hook for distance calculations
   const geolocation = useGeolocation();
@@ -70,6 +71,9 @@ export const SearchPage: React.FC = () => {
       })
       .catch(() => {
         setHomeBannerText('');
+      })
+      .finally(() => {
+        setBannerLoaded(true);
       });
 
     // Phase 2: Set up real-time listener for updates
@@ -183,9 +187,23 @@ export const SearchPage: React.FC = () => {
 
       <MobileContent>
         <div className="flex flex-col min-h-full bg-gray-50">
+          {/* Banner - Loads first */}
+          {!searchInput.trim() && (
+            <div className="px-4 pt-6">
+              {!bannerLoaded ? (
+                <div className="animate-pulse bg-slate-200 rounded-2xl h-24 w-full shadow-sm"></div>
+              ) : homeBannerText ? (
+                <div className="bg-gradient-to-br from-slate-900 via-slate-800 to-slate-700 rounded-2xl p-5 shadow-xl border border-slate-700">
+                  <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-300 mb-2">Announcement</p>
+                  <p className="text-sm leading-relaxed text-white/90">{homeBannerText}</p>
+                </div>
+              ) : null}
+            </div>
+          )}
+
           {/* Main Search Bar */}
-          <div className="px-4 py-6">
-            <div className="relative">
+            <div className="px-4 py-6">
+              <div className="relative">
               <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                 <svg className="h-5 w-5 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
@@ -244,13 +262,6 @@ export const SearchPage: React.FC = () => {
           {/* Store Owners Section - Hidden during search */}
           {!searchInput.trim() && (
             <div className="px-4 mb-6 space-y-4">
-              {homeBannerText && (
-                <div className="bg-gradient-to-br from-slate-900 via-slate-800 to-slate-700 rounded-2xl p-5 shadow-xl border border-slate-700">
-                  <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-300 mb-2">Announcement</p>
-                  <p className="text-sm leading-relaxed text-white/90">{homeBannerText}</p>
-                </div>
-              )}
-
               <div className="bg-gradient-to-br from-white to-green-50 rounded-2xl p-5 shadow-lg border border-green-100">
                 <div className="flex items-center mb-4">
                   <div className="w-8 h-8 bg-gradient-to-r from-green-500 to-emerald-500 rounded-2xl flex items-center justify-center mr-3">

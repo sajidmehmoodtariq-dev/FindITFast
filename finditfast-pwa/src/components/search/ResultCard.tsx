@@ -47,7 +47,7 @@ export const ResultCard: React.FC<ResultCardProps> = ({ result, onClick }) => {
       <div className="flex items-start justify-between">
         <div className="flex-1 min-w-0">
           {/* Item Name */}
-          <div className="flex items-center gap-2 mb-3 flex-wrap">
+          <div className="mb-3 min-w-0 w-full">
             <h3 className="text-xl font-semibold truncate text-heading">
               {result.name}
             </h3>

@@ -1,6 +1,5 @@
-import { useEffect, useState } from 'react';
+import { lazy, Suspense, useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
-import LoadingScreen from './components/LoadingScreen';
 import { SearchPage } from './pages/SearchPage';
 import { ItemDetailsPage } from './pages/ItemDetailsPage';
 import { FloorplanItemViewPage } from './pages/FloorplanItemViewPage';
@@ -9,57 +8,23 @@ import { InventoryPage } from './pages/InventoryPage';
 import { StoreDetailsPage } from './pages/StoreDetailsPage';
 import { FloorplanPage } from './pages/FloorplanPage';
 import { StoreRequestPage } from './pages/StoreRequestPage';
-import { OwnerAuthPage } from './pages/OwnerAuthPage';
-import { OwnerDashboard } from './pages/OwnerDashboard';
-import { AdminDashboard } from './pages/AdminDashboard';
-import { AdminAuthPage } from './pages/AdminAuthPage';
 import { AuthProvider } from './contexts/AuthContext';
 import { ProtectedRoute } from './components/auth';
 import { registerServiceWorker } from './utils/pwaUtils';
-import { BundleAnalyzer, CacheOptimizer } from './utilities/performanceUtils';
-import { optimizedSearchService } from './services/optimizedSearchService';
+import { CacheOptimizer } from './utilities/performanceUtils';
+
+// Lazy-load admin and owner pages — not needed for regular users
+const OwnerAuthPage = lazy(() => import('./pages/OwnerAuthPage').then(m => ({ default: m.OwnerAuthPage })));
+const OwnerDashboard = lazy(() => import('./pages/OwnerDashboard').then(m => ({ default: m.OwnerDashboard })));
+const AdminDashboard = lazy(() => import('./pages/AdminDashboard').then(m => ({ default: m.AdminDashboard })));
+const AdminAuthPage = lazy(() => import('./pages/AdminAuthPage').then(m => ({ default: m.AdminAuthPage })));
 
 function App() {
-  const [isLoading, setIsLoading] = useState(true);
-
   useEffect(() => {
-    // Initialize app
-    const initializeApp = async () => {
-      // Register service worker for PWA functionality
-      await registerServiceWorker();
-
-      // Initialize performance monitoring in development
-      if (process.env.NODE_ENV === 'development') {
-        BundleAnalyzer.logBundleInfo();
-        BundleAnalyzer.monitorResources();
-      }
-
-      // Preload popular searches for better performance
-      await optimizedSearchService.preloadPopularSearches();
-
-      // Clear old caches periodically
-      CacheOptimizer.clearOldCaches().catch(console.warn);
-
-      // Simulate minimum loading time for better UX
-      await new Promise(resolve => setTimeout(resolve, 2000));
-      
-      setIsLoading(false);
-    };
-
-    initializeApp();
-
-    // Performance cleanup on app unmount
-    return () => {
-      if (process.env.NODE_ENV === 'development') {
-        optimizedSearchService.clearCache();
-      }
-    };
+    // Fire background tasks without blocking the UI
+    registerServiceWorker().catch(console.warn);
+    CacheOptimizer.clearOldCaches().catch(console.warn);
   }, []);
-
-  // Show loading screen while initializing
-  if (isLoading) {
-    return <LoadingScreen />;
-  }
 
   return (
     <AuthProvider>
@@ -74,31 +39,31 @@ function App() {
           <Route path="/store/:storeId" element={<StoreDetailsPage />} />
           <Route path="/store/:storeId/floorplan" element={<FloorplanPage />} />
           <Route path="/request-store" element={<StoreRequestPage />} />
-          
-          {/* Owner authentication */}
-          <Route path="/owner/auth" element={<OwnerAuthPage />} />
-          
-          {/* Admin authentication */}
-          <Route path="/admin/auth" element={<AdminAuthPage />} />
-          
-          {/* Protected owner routes */}
-          <Route 
-            path="/owner/dashboard" 
+
+          {/* Owner authentication — lazy loaded */}
+          <Route path="/owner/auth" element={<Suspense fallback={null}><OwnerAuthPage /></Suspense>} />
+
+          {/* Admin authentication — lazy loaded */}
+          <Route path="/admin/auth" element={<Suspense fallback={null}><AdminAuthPage /></Suspense>} />
+
+          {/* Protected owner routes — lazy loaded */}
+          <Route
+            path="/owner/dashboard"
             element={
               <ProtectedRoute requireOwner={true}>
-                <OwnerDashboard />
+                <Suspense fallback={null}><OwnerDashboard /></Suspense>
               </ProtectedRoute>
-            } 
+            }
           />
-          
-          {/* Admin routes */}
-          <Route 
-            path="/admin" 
+
+          {/* Admin routes — lazy loaded */}
+          <Route
+            path="/admin"
             element={
               <ProtectedRoute allowAdmin={true}>
-                <AdminDashboard />
+                <Suspense fallback={null}><AdminDashboard /></Suspense>
               </ProtectedRoute>
-            } 
+            }
           />
         </Routes>
       </Router>
