@@ -58,37 +58,37 @@ export const FloorplanPage: React.FC = () => {
           return;
         }
         
-        // Check for active floorplan from storePlans collection
-        let floorplanUrl = storeData.floorplanUrl || (storeData as any).floorPlanUrl;
-        
-        // If no direct floorplanUrl, check storePlans collection
-        if (!floorplanUrl) {
-          try {
-            const { StorePlanService } = await import('../services/firestoreService');
-            
-            // Try multiple store ID variations including prefixes
-            const storeIdVariations = [storeId, `temp_${storeId}`, `virtual_${storeId}`];
-            let activeStorePlans: any[] = [];
-            
-            for (const storeIdVariant of storeIdVariations) {
-              activeStorePlans = await StorePlanService.getActiveByStore(storeIdVariant);
-              if (activeStorePlans.length > 0) break;
-            }
-            
-            if (activeStorePlans.length > 0) {
-              const activePlan = activeStorePlans[0];
+        // Always query storePlans first — it is the authoritative source for floorplan images.
+        // storeData.floorplanUrl may hold a stale/broken URL (e.g. old Firebase Storage link).
+        let floorplanUrl: string | undefined = undefined;
 
-              if ((activePlan as any).imageUrl) {
-                // New format: image was uploaded to Firebase Storage
-                floorplanUrl = (activePlan as any).imageUrl;
-              } else if (activePlan.base64) {
-                // Legacy format: base64 stored directly in Firestore
-                floorplanUrl = `data:${activePlan.type || 'image/jpeg'};base64,${activePlan.base64}`;
-              }
-              // hasImageData+fileName plans pre-date Firebase Storage upload — files never stored, skip
-            }
-          } catch {
+        try {
+          const { StorePlanService } = await import('../services/firestoreService');
+          const storeIdVariations = [storeId, `temp_${storeId}`, `virtual_${storeId}`];
+          let activeStorePlans: any[] = [];
+
+          for (const storeIdVariant of storeIdVariations) {
+            activeStorePlans = await StorePlanService.getActiveByStore(storeIdVariant);
+            if (activeStorePlans.length > 0) break;
           }
+
+          if (activeStorePlans.length > 0) {
+            // Prefer plans with base64 (local storage) over imageUrl (may be broken Storage URL)
+            const planWithBase64 = activeStorePlans.find(p => p.base64);
+            const bestPlan = planWithBase64 || activeStorePlans[0];
+            if (bestPlan.base64) {
+              floorplanUrl = bestPlan.base64;
+            } else if ((bestPlan as any).imageUrl) {
+              floorplanUrl = (bestPlan as any).imageUrl;
+            }
+          }
+        } catch (e) {
+          console.error('FloorplanPage: storePlans query failed:', e);
+        }
+
+        // Fall back to the store document's floorplanUrl only if storePlans had nothing
+        if (!floorplanUrl) {
+          floorplanUrl = storeData.floorplanUrl || (storeData as any).floorPlanUrl;
         }
         
         // Map storeRequest properties to Store interface if needed

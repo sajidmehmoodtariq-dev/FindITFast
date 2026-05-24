@@ -1,8 +1,22 @@
 [
   {
     "origin": ["http://localhost:5173", "http://127.0.0.1:5173", "https://finditfastapp.web.app", "https://finditfastapp.firebaseapp.com"],
-    "method": ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    "method": ["GET", "HEAD", "PUT", "POST", "DELETE", "OPTIONS"],
     "maxAgeSeconds": 3600,
-    "responseHeader": ["Content-Type", "Authorization", "X-Requested-With"]
+    "responseHeader": [
+      "Content-Type",
+      "Authorization",
+      "Content-Length",
+      "X-Requested-With",
+      "x-goog-resumable",
+      "x-firebase-storage-version",
+      "x-goog-upload-command",
+      "x-goog-upload-header-content-length",
+      "x-goog-upload-header-content-type",
+      "x-goog-upload-protocol",
+      "x-goog-upload-status",
+      "x-goog-upload-url",
+      "x-goog-upload-chunk-granularity"
+    ]
   }
 ]

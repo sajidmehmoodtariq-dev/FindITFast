@@ -3,7 +3,6 @@ import { validateImageFile, fileToBase64 } from '../../utilities/imageUtils';
 import { validateAndPrepareImage } from '../../utils/imageCompression';
 import { StorePlanService, StoreOwnerService } from '../../services/firestoreService';
 import { useAuth } from '../../contexts/AuthContext';
-import { getStorage, ref, uploadString, getDownloadURL } from 'firebase/storage';
 
 interface FloorplanUploadProps {
   storeId: string;
@@ -158,27 +157,22 @@ export const FloorplanUpload: React.FC<FloorplanUploadProps> = ({
       });
       
       const base64Data = validation.base64;
-      
+
       setUploadProgress(60);
 
-      // Upload image to Firebase Storage so it persists and can be loaded anywhere
-      const storage = getStorage();
-      const fileName = `${Date.now()}_${selectedFile.name}`;
-      const storageRef = ref(storage, `storePlans/${storeId}/${fileName}`);
-      await uploadString(storageRef, base64Data, 'data_url');
-      const imageUrl = await getDownloadURL(storageRef);
-
-      setUploadProgress(80);
-
-      // Deactivate all existing plans first
-      const existingPlans = await StorePlanService.getByStore(storeId);
-      if (existingPlans.length > 0) {
-        await Promise.all(existingPlans.map(plan =>
+      // Deactivate existing plans using getByOwner (confirmed working index)
+      // and filter by storeId client-side to avoid the (storeId+createdAt) index
+      const ownerPlans = await StorePlanService.getByOwner(user.uid);
+      const plansForStore = ownerPlans.filter(p => (p as any).storeId === storeId);
+      if (plansForStore.length > 0) {
+        await Promise.all(plansForStore.map(plan =>
           StorePlanService.update(plan.id, { isActive: false })
         ));
       }
 
-      // Create new store plan with the persistent storage URL
+      setUploadProgress(80);
+
+      // Store base64 directly in Firestore
       const now = new Date();
       await StorePlanService.create({
         storeId: storeId,
@@ -190,13 +184,13 @@ export const FloorplanUpload: React.FC<FloorplanUploadProps> = ({
         originalSize: selectedFile.size,
         isActive: true,
         hasImageData: true,
-        fileName: fileName,
-        imageUrl: imageUrl,
+        fileName: selectedFile.name,
+        base64: base64Data,
       } as any);
 
       setUploadProgress(100);
 
-      onUploadSuccess(imageUrl);
+      onUploadSuccess(base64Data);
       
       // Reset form
       setSelectedFile(null);

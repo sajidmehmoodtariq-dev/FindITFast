@@ -66,6 +66,13 @@ service firebase.storage {
       allow delete: if isAuthenticated();
     }
 
+    // Store plans uploaded via FloorplanUpload component
+    match /storePlans/{storeId}/{fileName} {
+      allow read: if true;
+      allow write: if (isOwnerOfStore(storeId) || isAdmin()) && isValidImageFile();
+      allow delete: if isOwnerOfStore(storeId) || isAdmin();
+    }
+
     // Store floorplans
     match /stores/{storeId}/floorplan.jpg {
       // Anyone can read floorplans

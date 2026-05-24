@@ -15,13 +15,15 @@ export const FloorplanImage: React.FC<FloorplanImageProps> = ({
   onLoad,
   onError
 }) => {
-  const [isLoading, setIsLoading] = useState(true);
+  // Data URLs are decoded locally — no network load needed, skip spinner entirely
+  const isDataUrl = src.startsWith('data:');
+  const [isLoading, setIsLoading] = useState(!isDataUrl);
   const [hasError, setHasError] = useState(false);
   const [scale, setScale] = useState(1);
   const [position, setPosition] = useState({ x: 0, y: 0 });
   const [isDragging, setIsDragging] = useState(false);
   const [lastTouch, setLastTouch] = useState({ x: 0, y: 0 });
-  
+
   const containerRef = useRef<HTMLDivElement>(null);
   const imageRef = useRef<HTMLImageElement>(null);
 
@@ -37,11 +39,11 @@ export const FloorplanImage: React.FC<FloorplanImageProps> = ({
     onError?.();
   }, [onError]);
 
-  // Reset transform when image changes
+  // Reset transform when image changes; skip loading spinner for data URLs
   useEffect(() => {
     setScale(1);
     setPosition({ x: 0, y: 0 });
-    setIsLoading(true);
+    setIsLoading(!src.startsWith('data:'));
     setHasError(false);
   }, [src]);
 

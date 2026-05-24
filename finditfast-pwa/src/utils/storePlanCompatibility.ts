@@ -18,17 +18,21 @@ export interface LegacyStorePlan extends Omit<StorePlan, 'hasImageData' | 'fileN
  * For new metadata-only floorplans, returns a placeholder image
  */
 export function getStorePlanImageUrl(storePlan: LegacyStorePlan | StorePlan): string {
-  // Legacy format - has base64 data
+  // Base64 stored directly in Firestore
   if ('base64' in storePlan && storePlan.base64) {
     return storePlan.base64;
   }
-  
-  // New format - metadata only, return placeholder
+
+  // Firebase Storage URL (legacy records that were uploaded before reverting)
+  if ('imageUrl' in storePlan && (storePlan as any).imageUrl) {
+    return (storePlan as any).imageUrl;
+  }
+
+  // Metadata-only record with no image — show placeholder
   if (storePlan.hasImageData) {
     return generateFloorplanPlaceholder(storePlan.fileName || storePlan.name);
   }
-  
-  // Fallback placeholder
+
   return generateFloorplanPlaceholder('Floorplan');
 }
 

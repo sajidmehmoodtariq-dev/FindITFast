@@ -246,6 +246,8 @@ export const ItemService = {
 export const StoreOwnerService = {
   getAll: () => FirestoreService.getCollection<StoreOwner>('storeOwners'),
   getById: (id: string) => FirestoreService.getDocument<StoreOwner>('storeOwners', id),
+  getByFirebaseUid: (uid: string) =>
+    FirestoreService.getCollection<StoreOwner>('storeOwners', [where('firebaseUid', '==', uid)]),
   create: (owner: Omit<StoreOwner, 'id'>) => FirestoreService.addDocument<StoreOwner>('storeOwners', owner),
   createWithId: async (id: string, owner: Omit<StoreOwner, 'id'>): Promise<void> => {
     try {
@@ -376,30 +378,24 @@ export const StorePlanService = {
   getAll: () => FirestoreService.getCollection<StorePlan>('storePlans'),
   getById: (id: string) => FirestoreService.getDocument<StorePlan>('storePlans', id),
   getByStore: async (storeId: string) => {
-    // Try to get store plans with the exact storeId first
-    let plans = await FirestoreService.getCollection<StorePlan>('storePlans', [
-      where('storeId', '==', storeId),
-      orderBy('createdAt', 'desc')
-    ]);
-    
-    // If no plans found, try with common prefixes (temp_, virtual_)
-    if (plans.length === 0) {
-      const prefixedIds = [`temp_${storeId}`, `virtual_${storeId}`];
-      
-      for (const prefixedId of prefixedIds) {
-        const prefixedPlans = await FirestoreService.getCollection<StorePlan>('storePlans', [
-          where('storeId', '==', prefixedId),
-          orderBy('createdAt', 'desc')
-        ]);
-        
-        if (prefixedPlans.length > 0) {
-          plans = prefixedPlans;
-          break;
-        }
+    // Single-field where only — orderBy on a different field requires a composite index.
+    // Sort client-side instead.
+    const storeIdVariations = [storeId, `temp_${storeId}`, `virtual_${storeId}`];
+
+    for (const id of storeIdVariations) {
+      const plans = await FirestoreService.getCollection<StorePlan>('storePlans', [
+        where('storeId', '==', id),
+      ]);
+      if (plans.length > 0) {
+        return plans.sort((a, b) => {
+          const ta = (a.createdAt as any)?.toMillis?.() ?? 0;
+          const tb = (b.createdAt as any)?.toMillis?.() ?? 0;
+          return tb - ta;
+        });
       }
     }
-    
-    return plans;
+
+    return [];
   },
   getByOwner: (ownerId: string) =>
     FirestoreService.getCollection<StorePlan>('storePlans', [
@@ -407,32 +403,19 @@ export const StorePlanService = {
       orderBy('createdAt', 'desc')
     ]),
   getActiveByStore: async (storeId: string) => {
-    // Try to get active store plans with the exact storeId first
-    let plans = await FirestoreService.getCollection<StorePlan>('storePlans', [
-      where('storeId', '==', storeId),
-      where('isActive', '==', true),
-      limit(1)
-    ]);
-    
-    // If no plans found, try with common prefixes (temp_, virtual_)
-    if (plans.length === 0) {
-      const prefixedIds = [`temp_${storeId}`, `virtual_${storeId}`];
-      
-      for (const prefixedId of prefixedIds) {
-        const prefixedPlans = await FirestoreService.getCollection<StorePlan>('storePlans', [
-          where('storeId', '==', prefixedId),
-          where('isActive', '==', true),
-          limit(1)
-        ]);
-        
-        if (prefixedPlans.length > 0) {
-          plans = prefixedPlans;
-          break;
-        }
-      }
+    // Use a single-field where clause only — compound queries (where+where) require a
+    // composite index that may not exist. Filter isActive client-side instead.
+    const storeIdVariations = [storeId, `temp_${storeId}`, `virtual_${storeId}`];
+
+    for (const id of storeIdVariations) {
+      const all = await FirestoreService.getCollection<StorePlan>('storePlans', [
+        where('storeId', '==', id),
+      ]);
+      const active = all.filter(p => p.isActive);
+      if (active.length > 0) return active;
     }
-    
-    return plans;
+
+    return [];
   },
   create: async (storePlan: Omit<StorePlan, 'id' | 'createdAt' | 'updatedAt'>): Promise<string> => {
     const now = new Date();

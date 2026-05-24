@@ -51,17 +51,17 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   };
 
   useEffect(() => {
-    const unsubscribe = AuthService.onAuthStateChange(async (user) => {
+    const unsubscribe = AuthService.onAuthStateChange((user) => {
       setUser(user);
-      
+
       if (user) {
-        // User is authenticated, fetch profile
-        await refreshOwnerProfile();
+        setLoading(false);
+        // Fetch profile asynchronously — don't block the auth handler
+        refreshOwnerProfile();
       } else {
         setOwnerProfile(null);
+        setLoading(false);
       }
-      
-      setLoading(false);
     });
 
     return unsubscribe;

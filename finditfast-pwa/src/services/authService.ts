@@ -111,32 +111,13 @@ export class AuthService {
    */
   static async getCurrentOwnerProfile(): Promise<StoreOwner | null> {
     const user = this.getCurrentUser();
-    if (!user) {
-      console.log('❌ AuthService: No current user');
-      return null;
-    }
+    if (!user) return null;
 
     try {
-      console.log('🔍 AuthService: Querying owners for firebaseUid:', user.uid);
-      // Query owner by Firebase UID field
-      const owners = await StoreOwnerService.getAll();
-      console.log('📋 AuthService: Found', owners.length, 'total owners');
-      
-      const matchingOwner = owners.find(owner => owner.firebaseUid === user.uid);
-      console.log('🎯 AuthService: Matching owner:', matchingOwner ? `Found: ${matchingOwner.id}` : 'Not found');
-      
-      if (matchingOwner) {
-        console.log('✅ AuthService: Owner details:', {
-          id: matchingOwner.id,
-          email: matchingOwner.email,
-          firebaseUid: matchingOwner.firebaseUid,
-          storeId: matchingOwner.storeId
-        });
-      }
-      
-      return matchingOwner || null;
+      const owners = await StoreOwnerService.getByFirebaseUid(user.uid);
+      return owners[0] ?? null;
     } catch (error) {
-      console.error('❌ AuthService: Error getting owner profile:', error);
+      console.error('Error getting owner profile:', error);
       return null;
     }
   }
