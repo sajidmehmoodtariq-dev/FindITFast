@@ -3,6 +3,7 @@ import { validateImageFile, fileToBase64 } from '../../utilities/imageUtils';
 import { validateAndPrepareImage } from '../../utils/imageCompression';
 import { StorePlanService, StoreOwnerService } from '../../services/firestoreService';
 import { useAuth } from '../../contexts/AuthContext';
+import { getStorage, ref, uploadString, getDownloadURL } from 'firebase/storage';
 
 interface FloorplanUploadProps {
   storeId: string;
@@ -158,25 +159,26 @@ export const FloorplanUpload: React.FC<FloorplanUploadProps> = ({
       
       const base64Data = validation.base64;
       
-      setUploadProgress(75);
-      console.log('📋 Getting existing store plans...');
-      
-      // Get existing store plans to mark others as inactive
-      const existingPlans = await StorePlanService.getByStore(storeId);
-      console.log('📊 Found existing plans:', existingPlans.length);
-      
+      setUploadProgress(60);
+
+      // Upload image to Firebase Storage so it persists and can be loaded anywhere
+      const storage = getStorage();
+      const fileName = `${Date.now()}_${selectedFile.name}`;
+      const storageRef = ref(storage, `storePlans/${storeId}/${fileName}`);
+      await uploadString(storageRef, base64Data, 'data_url');
+      const imageUrl = await getDownloadURL(storageRef);
+
+      setUploadProgress(80);
+
       // Deactivate all existing plans first
+      const existingPlans = await StorePlanService.getByStore(storeId);
       if (existingPlans.length > 0) {
-        console.log('🔄 Deactivating existing plans...');
-        const deactivatePromises = existingPlans.map(plan => 
+        await Promise.all(existingPlans.map(plan =>
           StorePlanService.update(plan.id, { isActive: false })
-        );
-        await Promise.all(deactivatePromises);
-        console.log('✅ Existing plans deactivated');
+        ));
       }
 
-      console.log('📝 Creating new store plan...');
-      // Create new store plan
+      // Create new store plan with the persistent storage URL
       const now = new Date();
       await StorePlanService.create({
         storeId: storeId,
@@ -186,15 +188,15 @@ export const FloorplanUpload: React.FC<FloorplanUploadProps> = ({
         size: validation.compressionResult.compressedSize,
         uploadedAt: now as any,
         originalSize: selectedFile.size,
-        isActive: true, // Make this the active floorplan
+        isActive: true,
         hasImageData: true,
-        fileName: selectedFile.name,
-      });
+        fileName: fileName,
+        imageUrl: imageUrl,
+      } as any);
 
       setUploadProgress(100);
-      
-      // Success callback with base64 data URL
-      onUploadSuccess(base64Data);
+
+      onUploadSuccess(imageUrl);
       
       // Reset form
       setSelectedFile(null);

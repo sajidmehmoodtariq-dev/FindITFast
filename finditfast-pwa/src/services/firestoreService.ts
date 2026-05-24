@@ -99,16 +99,8 @@ export class FirestoreService {
 // Specific service methods for each collection
 export const StoreService = {
   getAll: async (): Promise<Store[]> => {
-    console.log('🏪 [STORE SERVICE DEBUG] Getting approved stores...');
-    // Get approved stores and filter out deleted ones client-side
     const allApprovedStores = await FirestoreService.getCollection<Store & { deleted?: boolean }>('storeRequests', [where('status', '==', 'approved')]);
-    console.log('🏪 [STORE SERVICE DEBUG] Found approved stores before filtering:', allApprovedStores.length);
-    
-    // Filter out deleted stores client-side
-    const activeStores = allApprovedStores.filter(store => !store.deleted);
-    console.log('🏪 [STORE SERVICE DEBUG] Active stores after filtering:', activeStores.length);
-    
-    return activeStores;
+    return allApprovedStores.filter(store => !store.deleted);
   },
   getById: async (id: string): Promise<Store | null> => {
     const store = await FirestoreService.getDocument<Store & { deleted?: boolean }>('storeRequests', id);
@@ -194,51 +186,16 @@ export const ItemService = {
     return items;
   },
   search: async (searchTerm: string) => {
-    console.log('🔍 [SEARCH DEBUG] Starting search for:', searchTerm);
-    
-    // Get all items for fuzzy search (Firestore doesn't support full-text search)
     const allItems = await FirestoreService.getCollection<Item>('items');
-    console.log('📋 [SEARCH DEBUG] Total items in database:', allItems.length);
-    
-    if (allItems.length > 0) {
-      console.log('📋 [SEARCH DEBUG] Sample items:', allItems.slice(0, 3).map(item => ({
-        id: item.id,
-        name: item.name,
-        category: item.category,
-        storeId: item.storeId,
-        deleted: item.deleted
-      })));
-    }
-    
     const searchLower = searchTerm.toLowerCase().trim();
-    
-    // Filter items that contain the search term in name or description
+
     const matchingItems = allItems.filter(item => {
-      // Skip deleted items
-      if (item.deleted) {
-        return false;
-      }
-      
+      if (item.deleted) return false;
       const nameMatch = item.name?.toLowerCase().includes(searchLower);
       const descMatch = item.description?.toLowerCase().includes(searchLower);
       const categoryMatch = item.category?.toLowerCase().includes(searchLower);
-      const matches = nameMatch || descMatch || categoryMatch;
-      
-      if (matches) {
-        console.log('✅ [SEARCH DEBUG] Found matching item:', {
-          name: item.name,
-          category: item.category,
-          storeId: item.storeId,
-          nameMatch,
-          descMatch,
-          categoryMatch
-        });
-      }
-      
-      return matches;
+      return nameMatch || descMatch || categoryMatch;
     });
-    
-    console.log('🎯 [SEARCH DEBUG] Matching items found:', matchingItems.length);
 
     // Sort by relevance: exact matches first, then verified items, then by name
     return matchingItems.sort((a, b) => {
@@ -327,9 +284,6 @@ export const ReportService = {
   },
   getByStoreOwner: async (ownerId: string) => {
     try {
-      console.log('🔍 Fetching reports for owner:', ownerId);
-      
-      // Get all stores owned by this user from BOTH collections
       const storeQueries = [
         // From stores collection (active stores)
         FirestoreService.getCollection<Store>('stores', [
@@ -362,15 +316,11 @@ export const ReportService = {
         arr.findIndex(s => s.id === store.id) === index
       );
       
-      console.log(`📦 Found ${uniqueStores.length} stores for owner`);
-      
       if (uniqueStores.length === 0) {
-        console.log('⚠️ No stores found for owner');
         return [];
       }
-      
+
       const storeIds = uniqueStores.map(store => store.id);
-      console.log('🏪 Store IDs:', storeIds);
       
       // Get reports for all stores - handle both exact and prefixed store IDs
       const allReports: Report[] = [];
@@ -382,20 +332,15 @@ export const ReportService = {
           orderBy('timestamp', 'desc')
         ]);
         
-        console.log(`📊 Found ${reports.length} reports for store ${storeId}`);
-        
-        // If no reports found, try with prefixes
         if (reports.length === 0) {
           const prefixedIds = [`temp_${storeId}`, `virtual_${storeId}`];
-          
+
           for (const prefixedId of prefixedIds) {
             const prefixedReports = await FirestoreService.getCollection<Report>('reports', [
               where('storeId', '==', prefixedId),
               orderBy('timestamp', 'desc')
             ]);
-            
-            console.log(`📊 Found ${prefixedReports.length} reports for prefixed store ${prefixedId}`);
-            
+
             if (prefixedReports.length > 0) {
               reports = prefixedReports;
               break;
@@ -405,8 +350,6 @@ export const ReportService = {
         
         allReports.push(...reports);
       }
-      
-      console.log(`✅ Total reports found: ${allReports.length}`);
       
       // Sort all reports by timestamp
       const sortedReports = allReports.sort((a, b) => {

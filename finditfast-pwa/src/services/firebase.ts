@@ -1,5 +1,5 @@
 import { initializeApp } from 'firebase/app';
-import { getFirestore } from 'firebase/firestore';
+import { initializeFirestore, persistentLocalCache, persistentMultipleTabManager } from 'firebase/firestore';
 import { getStorage } from 'firebase/storage';
 import { getAuth, setPersistence, browserLocalPersistence } from 'firebase/auth';
 
@@ -18,7 +18,10 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 
 // Initialize Firebase services
-export const db = getFirestore(app);
+// persistentLocalCache stores Firestore data in IndexedDB so repeat visits serve data instantly
+export const db = initializeFirestore(app, {
+  localCache: persistentLocalCache({ tabManager: persistentMultipleTabManager() })
+});
 export const storage = getStorage(app);
 export const auth = getAuth(app);
 
@@ -30,10 +33,5 @@ setPersistence(auth, browserLocalPersistence).catch((error) => {
 
 // For demo/development - disable analytics to avoid errors
 export const analytics = null;
-
-// Mock auth for demo purposes
-if (firebaseConfig.apiKey === "demo-api-key") {
-  console.log('🔧 Running in demo mode - Firebase features limited');
-}
 
 export default app;

@@ -40,7 +40,6 @@ export const getPWADisplayMode = (): string => {
 // Register service worker with error handling
 export const registerServiceWorker = async (): Promise<ServiceWorkerRegistration | null> => {
   if (!('serviceWorker' in navigator)) {
-    console.log('Service Worker not supported');
     return null;
   }
 
@@ -51,8 +50,6 @@ export const registerServiceWorker = async (): Promise<ServiceWorkerRegistration
     const registration = await navigator.serviceWorker.register(swPath, {
       scope: '/'
     });
-    
-    console.log('Service Worker registered successfully:', registration);
     
     // Handle updates
     registration.addEventListener('updatefound', () => {
@@ -83,7 +80,6 @@ export const unregisterServiceWorker = async (): Promise<boolean> => {
   try {
     const registration = await navigator.serviceWorker.ready;
     const result = await registration.unregister();
-    console.log('Service Worker unregistered:', result);
     return result;
   } catch (error) {
     console.error('Service Worker unregistration failed:', error);
@@ -128,7 +124,6 @@ export const clearAppCache = async (): Promise<void> => {
     await Promise.all(
       cacheNames.map(cacheName => caches.delete(cacheName))
     );
-    console.log('App cache cleared');
   }
 };
 
@@ -146,14 +141,8 @@ export const getCacheStorageEstimate = async (): Promise<StorageEstimate | null>
 };
 
 // PWA analytics helper
-export const trackPWAEvent = (eventName: string, properties?: Record<string, any>): void => {
-  // This would integrate with your analytics service (Firebase Analytics, etc.)
-  console.log('PWA Event:', eventName, properties);
-  
-  // Example: Send to Firebase Analytics
-  // if (window.gtag) {
-  //   window.gtag('event', eventName, properties);
-  // }
+export const trackPWAEvent = (_eventName: string, _properties?: Record<string, any>): void => {
+  // Hook into Firebase Analytics here when needed
 };
 
 // Handle PWA installation

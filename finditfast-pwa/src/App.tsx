@@ -12,6 +12,7 @@ import { AuthProvider } from './contexts/AuthContext';
 import { ProtectedRoute } from './components/auth';
 import { registerServiceWorker } from './utils/pwaUtils';
 import { CacheOptimizer } from './utilities/performanceUtils';
+import { SearchService } from './services/searchService';
 
 // Lazy-load admin and owner pages — not needed for regular users
 const OwnerAuthPage = lazy(() => import('./pages/OwnerAuthPage').then(m => ({ default: m.OwnerAuthPage })));
@@ -21,9 +22,9 @@ const AdminAuthPage = lazy(() => import('./pages/AdminAuthPage').then(m => ({ de
 
 function App() {
   useEffect(() => {
-    // Fire background tasks without blocking the UI
     registerServiceWorker().catch(console.warn);
     CacheOptimizer.clearOldCaches().catch(console.warn);
+    SearchService.preloadCache();
   }, []);
 
   return (

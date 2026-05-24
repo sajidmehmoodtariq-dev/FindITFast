@@ -50,8 +50,6 @@ export const FloorplanViewer: React.FC<FloorplanViewerProps> = ({
       const rect = containerRef.current.getBoundingClientRect();
       const x = ((event.clientX - rect.left) / rect.width) * 100;
       const y = ((event.clientY - rect.top) / rect.height) * 100;
-      
-      console.log('🎯 Floorplan clicked for relocate:', { x, y });
       onLocationSelect({ x, y });
     }
   };
@@ -68,40 +66,6 @@ export const FloorplanViewer: React.FC<FloorplanViewerProps> = ({
     const cleanedStoreId = store.id.replace(/^(temp_|virtual_)/, '');
     
     return cleanedItemStoreId === cleanedStoreId;
-  });
-
-  console.log('🗺️ FloorplanViewer Debug:', {
-    storeId: store.id,
-    storeName: store.name,
-    storeFloorplanUrl: store.floorplanUrl,
-    hasFloorplanUrl: !!store.floorplanUrl,
-    totalItems: items.length,
-    filteredStoreItems: storeItems.length,
-    selectedItemId,
-    imageLoadState: { isImageLoaded, imageError },
-    itemsWithStoreIds: items.map(item => ({ 
-      id: item.id, 
-      name: item.name, 
-      storeId: item.storeId,
-      position: item.position,
-      hasPosition: !!(item.position?.x !== undefined && item.position?.y !== undefined)
-    })),
-    storeItemsWithPositions: storeItems.map(item => ({
-      id: item.id,
-      name: item.name,
-      position: item.position,
-      isSelected: item.id === selectedItemId,
-      hasValidPosition: !!(item.position?.x !== undefined && item.position?.y !== undefined)
-    }))
-  });
-
-  // Additional debugging for rendering conditions
-  console.log('🎯 Rendering conditions check:', {
-    isImageLoaded,
-    imageError,
-    storeItemsLength: storeItems.length,
-    storeItemsWithValidPositions: storeItems.filter(item => item.position?.x !== undefined && item.position?.y !== undefined).length,
-    shouldRenderPins: isImageLoaded && !imageError && storeItems.length > 0
   });
 
   if (!store.floorplanUrl) {
@@ -152,14 +116,10 @@ export const FloorplanViewer: React.FC<FloorplanViewerProps> = ({
         />
 
         {/* Item Pins Overlay */}
-        {isImageLoaded && !imageError && storeItems.length > 0 && (() => {
-          console.log('🎯 About to render', storeItems.length, 'ItemPin components');
-          return (
+        {isImageLoaded && !imageError && storeItems.length > 0 && (
             <div className="absolute inset-0 pointer-events-none">
               <div className="relative w-full h-full pointer-events-auto">
-                {storeItems.map((item) => {
-                  console.log('🔄 Rendering ItemPin for:', item.name, 'with position:', item.position);
-                  return (
+                {storeItems.map((item) => (
                     <ItemPin
                       key={item.id}
                       item={item}
@@ -168,12 +128,10 @@ export const FloorplanViewer: React.FC<FloorplanViewerProps> = ({
                       allowInteraction={canEditStoreItems(store.id) || isUser}
                       isBlinking={mode === 'relocate' && item.id === selectedItemId}
                     />
-                  );
-                })}
+                  ))}
               </div>
             </div>
-          );
-        })()}
+          )}
 
         {/* Items Count Badge */}
         {isImageLoaded && !imageError && storeItems.length > 0 && (

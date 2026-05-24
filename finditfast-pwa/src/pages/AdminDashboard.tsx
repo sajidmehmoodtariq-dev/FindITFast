@@ -647,8 +647,27 @@ export const AdminDashboard: React.FC = () => {
         };
       });
       
+      // Fetch active store plans to get accurate floorplan status
+      const activePlansSnapshot = await getDocs(
+        query(collection(db, 'storePlans'), where('isActive', '==', true))
+      );
+      const storeIdsWithFloorplan = new Set<string>();
+      activePlansSnapshot.forEach(planDoc => {
+        const storeId = planDoc.data().storeId as string | undefined;
+        if (storeId) {
+          storeIdsWithFloorplan.add(storeId);
+          storeIdsWithFloorplan.add(storeId.replace(/^(temp_|virtual_)/, ''));
+        }
+      });
+
+      // Update hasFloorplan based on actual storePlans data
+      const storesWithFloorplan = storesData.map(store => ({
+        ...store,
+        hasFloorplan: storeIdsWithFloorplan.has(store.id) || !!store.floorplanUrl
+      }));
+
       // Sort by approval date (most recent first)
-      const sortedStores = storesData.sort((a, b) => {
+      const sortedStores = storesWithFloorplan.sort((a, b) => {
         const dateA = a.approvedAt || a.createdAt;
         const dateB = b.approvedAt || b.createdAt;
         return dateB.getTime() - dateA.getTime();
@@ -2191,11 +2210,11 @@ export const AdminDashboard: React.FC = () => {
                               <div>
                                 <p className="text-sm text-gray-500 mb-1">Floorplan</p>
                                 <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
-                                  store.floorplanUrl 
-                                    ? 'bg-green-100 text-green-800' 
+                                  store.hasFloorplan
+                                    ? 'bg-green-100 text-green-800'
                                     : 'bg-gray-100 text-gray-800'
                                 }`}>
-                                  {store.floorplanUrl ? '✅ Uploaded' : '📋 Missing'}
+                                  {store.hasFloorplan ? '✅ Uploaded' : '📋 Missing'}
                                 </span>
                               </div>
                             </div>
@@ -2221,11 +2240,9 @@ export const AdminDashboard: React.FC = () => {
 
                           {/* Action buttons - responsive layout */}
                           <div className="lg:ml-6 flex flex-row lg:flex-col space-x-2 lg:space-x-0 lg:space-y-2 flex-shrink-0">
-                            {store.floorplanUrl && (
-                              <a
-                                href={store.floorplanUrl}
-                                target="_blank"
-                                rel="noopener noreferrer"
+                            {store.hasFloorplan && (
+                              <button
+                                onClick={() => navigate(`/store/${store.id}/floorplan`)}
                                 className="flex items-center justify-center px-3 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors whitespace-nowrap"
                               >
                                 <svg className="w-4 h-4 mr-1 lg:mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -2234,7 +2251,7 @@ export const AdminDashboard: React.FC = () => {
                                 </svg>
                                 <span className="hidden sm:inline">View Floorplan</span>
                                 <span className="sm:hidden">View</span>
-                              </a>
+                              </button>
                             )}
                             
                             <button

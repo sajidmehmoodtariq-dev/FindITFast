@@ -1,4 +1,4 @@
-import { Timestamp, where } from 'firebase/firestore';
+import { Timestamp } from 'firebase/firestore';
 import { FirestoreService, ItemService, StoreService } from './firestoreService';
 // Import types are used in JSDoc comments and type annotations
 import type { SearchResult } from '../types/search';
@@ -22,14 +22,41 @@ type TimestampLike = {
 };
 
 export class SearchService {
-  private static readonly CACHE_VERSION = 1;
+  private static readonly CACHE_VERSION = 2;
   private static readonly CACHE_TTL_MS = 5 * 60 * 1000;
   private static readonly RESULT_CACHE_TTL_MS = 2 * 60 * 1000;
   private static readonly MAX_RESULTS = 20;
 
   private static readonly ITEMS_CACHE_KEY = 'finditfast_search_items_v1';
   private static readonly STORES_CACHE_KEY = 'finditfast_search_stores_v1';
+  private static readonly LEGACY_STORES_CACHE_KEY = 'finditfast_search_legacy_stores_v1';
   private static readonly RESULT_CACHE_KEY = 'finditfast_search_results_v1';
+
+  // In-memory cache — primary layer, no quota limits
+  private static readonly memCache = new Map<string, { timestamp: number; data: unknown }>();
+  // Deduplicates concurrent fetches for the same collection key
+  private static readonly inFlight = new Map<string, Promise<unknown[]>>();
+
+  /**
+   * Preload items and stores into cache as soon as the app opens so the
+   * first search is instant. Call this on SearchPage mount — fire and forget.
+   */
+  static preloadCache(): void {
+    const itemsMem = this.memCache.get(this.ITEMS_CACHE_KEY);
+    const storesMem = this.memCache.get(this.STORES_CACHE_KEY);
+    const now = Date.now();
+
+    if (itemsMem && storesMem &&
+        now - itemsMem.timestamp <= this.CACHE_TTL_MS &&
+        now - storesMem.timestamp <= this.CACHE_TTL_MS) {
+      return;
+    }
+
+    Promise.all([
+      this.getCachedCollection<Item>(this.ITEMS_CACHE_KEY, () => ItemService.getAll()),
+      this.getCachedCollection<Store>(this.STORES_CACHE_KEY, () => StoreService.getAll()),
+    ]).catch(() => {});
+  }
 
   private static readonly storagePriority: Array<'sessionStorage' | 'localStorage'> = [
     'sessionStorage',
@@ -105,6 +132,7 @@ export class SearchService {
 
       if (unresolvedItems.length > 0) {
         const fallbackStores = await this.loadFallbackStores();
+
         fallbackStores.forEach((store) => {
           this.registerStore(storeMap, store);
         });
@@ -142,10 +170,8 @@ export class SearchService {
       const finalResults = sortedResults.slice(0, this.MAX_RESULTS).map(({ relevanceScore, ...result }) => result);
 
       this.setCachedValue(resultCacheKey, finalResults);
-
       return finalResults;
     } catch (error) {
-      console.error('❌ [SEARCH SERVICE DEBUG] Search error:', error);
       throw new Error('Failed to search items. Please try again.');
     }
   }
@@ -371,16 +397,23 @@ export class SearchService {
 
   private static async loadFallbackStores(): Promise<Store[]> {
     try {
+      // storeRequests already cached by STORES_CACHE_KEY — no extra Firestore query
+      // legacyStores gets its own cache so it's also only fetched once per session
       const [legacyStores, approvedStoreRequests] = await Promise.all([
-        FirestoreService.getCollection<any>('stores'),
-        FirestoreService.getCollection<any>('storeRequests', [where('status', '==', 'approved')])
+        this.getCachedCollection<any>(
+          this.LEGACY_STORES_CACHE_KEY,
+          () => FirestoreService.getCollection<any>('stores')
+        ),
+        this.getCachedCollection<Store>(
+          this.STORES_CACHE_KEY,
+          () => StoreService.getAll()
+        ),
       ]);
 
       return [...legacyStores, ...approvedStoreRequests]
         .map(store => this.normalizeStoreRecord(store))
         .filter((store): store is Store => !!store && !store.deleted);
-    } catch (error) {
-      console.warn('Failed to load fallback stores for search:', error);
+    } catch {
       return [];
     }
   }
@@ -389,55 +422,77 @@ export class SearchService {
     const name = this.normalizeText(item.name);
     const category = this.normalizeText(item.category);
     const description = this.normalizeText(item.description);
-    const combined = [name, category, description].filter(Boolean).join(' ');
 
-    if (!combined) {
-      return 0;
-    }
+    if (!name && !category && !description) return 0;
 
-    let score = 0;
+    let nameScore = 0;
+    let categoryScore = 0;
 
+    // 1. EXACT TITLE MATCH (highest priority)
     if (name === normalizedQuery) {
-      score += 5000;
+      nameScore += 5000;
     }
 
+    // 2. PARTIAL TITLE MATCH
     if (name.startsWith(normalizedQuery)) {
-      score += 2500;
+      nameScore += 2500;
+    } else if (name.includes(normalizedQuery)) {
+      nameScore += 1500;
     }
 
-    if (combined.includes(normalizedQuery)) {
-      score += 900;
+    // All query terms must appear in the name — partial matches (e.g. only "baby"
+    // from "baby food") are not enough and cause false positives like "Baby oil"
+    if (searchTerms.length > 0) {
+      const nameTermMatches = searchTerms.filter(term => name.includes(term));
+      if (nameTermMatches.length === searchTerms.length) {
+        nameScore += 1200;
+      }
     }
 
-    const matchedTerms = searchTerms.filter(term => combined.includes(term));
-    if (matchedTerms.length > 0) {
-      score += matchedTerms.length * 250;
-      score += Math.round((matchedTerms.length / searchTerms.length) * 300);
+    // 3. CATEGORY MATCH
+    if (category === normalizedQuery) {
+      categoryScore += 400;
+    } else if (category.includes(normalizedQuery)) {
+      categoryScore += 250;
+    } else {
+      const categoryTermMatches = searchTerms.filter(term => category.includes(term));
+      // ALL terms must appear in the category — a single-term partial match (e.g.
+      // "food" in "Baby Food" for a "dog food" query) is not strong enough to qualify
+      if (categoryTermMatches.length === searchTerms.length && categoryTermMatches.length > 0) {
+        categoryScore += 200;
+      }
     }
 
-    if (category.includes(normalizedQuery)) {
-      score += 180;
-    }
+    // CRITICAL: name or category must match — description alone is never enough
+    // to show a result. This prevents "Natural toothbrush" (plant-based description)
+    // from appearing when searching "plants".
+    const primaryScore = nameScore + categoryScore;
+    if (primaryScore === 0) return 0;
 
+    // 4. DESCRIPTION MATCH — small boost only, never a qualifier on its own
+    let descriptionBoost = 0;
     if (description.includes(normalizedQuery)) {
-      score += 90;
+      descriptionBoost = 40;
     }
 
+    let textScore = primaryScore + descriptionBoost;
+
+    // Quality bonuses — only added on top of a genuine text match
     if (item.verified) {
-      score += 150;
+      textScore += 100;
     }
 
     if (typeof item.reportCount === 'number') {
-      score += Math.max(0, 100 - item.reportCount * 15);
+      textScore += Math.max(0, 50 - item.reportCount * 10);
     }
 
     const verifiedMillis = this.getTimestampMillis(item.verifiedAt);
     if (verifiedMillis) {
       const daysSinceVerification = Math.max(0, (Date.now() - verifiedMillis) / 86400000);
-      score += Math.max(0, 75 - Math.floor(daysSinceVerification));
+      textScore += Math.max(0, 40 - Math.floor(daysSinceVerification));
     }
 
-    return score;
+    return textScore;
   }
 
   private static getTimestampMillis(value: unknown): number | null {
@@ -488,6 +543,16 @@ export class SearchService {
   }
 
   private static getCachedValue<T>(key: string, ttlMs: number): T | null {
+    // Check in-memory cache first — no quota limits, no deserialization cost
+    const mem = this.memCache.get(key);
+    if (mem) {
+      if (Date.now() - mem.timestamp <= ttlMs) {
+        return mem.data as T;
+      }
+      this.memCache.delete(key);
+    }
+
+    // Fall back to storage for small entries (search results)
     const storage = this.getStorage();
     if (!storage) {
       return null;
@@ -510,14 +575,19 @@ export class SearchService {
         return null;
       }
 
+      // Promote to in-memory so next read is instant
+      this.memCache.set(key, { timestamp: cached.timestamp, data: cached.data });
       return cached.data;
     } catch (error) {
-      console.warn('Failed to read search cache:', error);
       return null;
     }
   }
 
   private static setCachedValue<T>(key: string, data: T): void {
+    // Always write to in-memory cache — never fails due to quota
+    this.memCache.set(key, { timestamp: Date.now(), data });
+
+    // Also attempt storage for persistence across refreshes (best-effort)
     const storage = this.getStorage();
     if (!storage) {
       return;
@@ -531,20 +601,33 @@ export class SearchService {
       };
 
       storage.setItem(key, this.serialize(cacheEntry));
-    } catch (error) {
-      console.warn('Failed to write search cache:', error);
+    } catch {
+      // Storage quota exceeded — in-memory cache is still active, so no action needed
     }
   }
 
   private static async getCachedCollection<T>(key: string, fetcher: () => Promise<T[]>): Promise<T[]> {
     const cached = this.getCachedValue<T[]>(key, this.CACHE_TTL_MS);
-    if (cached) {
-      return cached;
+    if (cached) return cached;
+
+    // Reuse an in-progress fetch for the same key instead of firing a duplicate
+    if (this.inFlight.has(key)) {
+      return this.inFlight.get(key) as Promise<T[]>;
     }
 
-    const data = await fetcher();
-    this.setCachedValue(key, data);
-    return data;
+    const promise = fetcher()
+      .then(data => {
+        this.setCachedValue(key, data);
+        this.inFlight.delete(key);
+        return data;
+      })
+      .catch(err => {
+        this.inFlight.delete(key);
+        throw err;
+      });
+
+    this.inFlight.set(key, promise);
+    return promise;
   }
 
   private static getLocationKey(userLocation?: { latitude: number; longitude: number }): string {
@@ -624,7 +707,6 @@ export class SearchService {
    */
   static async getUserLocation(): Promise<{ latitude: number; longitude: number } | null> {
     if (!navigator.geolocation) {
-      console.warn('Geolocation is not supported by this browser');
       return null;
     }
 
@@ -636,8 +718,7 @@ export class SearchService {
             longitude: position.coords.longitude
           });
         },
-        (error) => {
-          console.warn('Error getting location:', error.message);
+        () => {
           resolve(null);
         },
         {
