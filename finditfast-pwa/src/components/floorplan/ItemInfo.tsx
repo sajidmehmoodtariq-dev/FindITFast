@@ -27,15 +27,10 @@ export const ItemInfo: React.FC<ItemInfoProps> = ({ item, store, className = '' 
     message: '',
     type: 'success'
   });
-  // Calculate days since verification
-  const getDaysSinceVerification = (verifiedAt: any): number => {
-    if (!verifiedAt) return 0;
-    
-    const verifiedDate = verifiedAt.toDate ? verifiedAt.toDate() : new Date(verifiedAt);
-    const now = new Date();
-    const diffTime = Math.abs(now.getTime() - verifiedDate.getTime());
-    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-    return diffDays;
+  const getDaysSinceConfirmed = (ts: any): number | null => {
+    if (!ts) return null;
+    const date = ts.toDate ? ts.toDate() : new Date(ts);
+    return Math.floor((Date.now() - date.getTime()) / 86400000);
   };
 
   const formatPrice = (price?: string): string => {
@@ -44,7 +39,7 @@ export const ItemInfo: React.FC<ItemInfoProps> = ({ item, store, className = '' 
     return isNaN(num) ? `$${price}` : `$${num.toFixed(2)}`;
   };
 
-  const daysSinceVerification = getDaysSinceVerification(item.verifiedAt);
+  const daysSinceConfirmed = getDaysSinceConfirmed(item.lastConfirmedAt);
 
   const handleReportClick = (reportType: 'missing' | 'moved' | 'found' | 'confirm') => {
     setModalState({
@@ -151,11 +146,13 @@ export const ItemInfo: React.FC<ItemInfoProps> = ({ item, store, className = '' 
                 </span>
               </div>
               <span className="text-sm text-gray-500">
-                Last confirmed {daysSinceVerification === 0 
-                  ? 'today' 
-                  : daysSinceVerification === 1 
-                    ? '1 day ago'
-                    : `${daysSinceVerification} days ago`
+                {daysSinceConfirmed === null
+                  ? 'Not yet confirmed'
+                  : daysSinceConfirmed <= 0
+                    ? 'Last confirmed today'
+                    : daysSinceConfirmed === 1
+                      ? 'Last confirmed 1 day ago'
+                      : `Last confirmed ${daysSinceConfirmed} days ago`
                 }
               </span>
             </>
