@@ -33,15 +33,16 @@ export const StockConfirmationButtons: React.FC<StockConfirmationButtonsProps> =
             try {
                 const sixHoursAgo = new Date(Date.now() - 6 * 60 * 60 * 1000);
                 const eventsRef = collection(db, 'itemStatusEvents');
-                const q = query(
-                    eventsRef,
-                    where('itemId', '==', item.id),
-                    where('userId', '==', userId),
-                    where('createdAt', '>=', Timestamp.fromDate(sixHoursAgo))
-                );
+                // Single-field query only — compound queries hang with offline persistence
+                const q = query(eventsRef, where('itemId', '==', item.id));
 
-                const recentEvents = await getDocs(q);
-                if (!recentEvents.empty) {
+                const snapshot = await getDocs(q);
+                const hasRecent = snapshot.docs.some((d) => {
+                    const data = d.data();
+                    const createdAt = data.createdAt as Timestamp | undefined;
+                    return data.userId === userId && createdAt ? createdAt.toDate() >= sixHoursAgo : false;
+                });
+                if (hasRecent) {
                     setIsDisabled(true);
                 }
             } catch (error) {

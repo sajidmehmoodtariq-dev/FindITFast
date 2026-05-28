@@ -15,8 +15,6 @@ export const FloorplanItemViewPage: React.FC = () => {
   
   const itemId = searchParams.get('itemId');
   
-  console.log('🎯 FloorplanItemViewPage: Component rendered with:', { storeId, itemId });
-  
   const [storePlan, setStorePlan] = useState<StorePlan | null>(null);
   const [targetItem, setTargetItem] = useState<Item | null>(null);
   const [store, setStore] = useState<Store | null>(null);
@@ -219,11 +217,17 @@ export const FloorplanItemViewPage: React.FC = () => {
     setIsDragging(false);
   };
 
-  const handleWheel = (e: React.WheelEvent) => {
-    e.preventDefault();
-    const newScale = Math.max(0.5, Math.min(3, scale - e.deltaY * 0.001));
-    setScale(newScale);
-  };
+  // Attach wheel listener as non-passive so preventDefault works
+  useEffect(() => {
+    const el = floorplanRef.current;
+    if (!el) return;
+    const onWheel = (e: WheelEvent) => {
+      e.preventDefault();
+      setScale(prev => Math.max(0.5, Math.min(3, prev - e.deltaY * 0.001)));
+    };
+    el.addEventListener('wheel', onWheel, { passive: false });
+    return () => el.removeEventListener('wheel', onWheel);
+  }, []);
 
   const handleZoomIn = () => {
     setScale(Math.min(3, scale * 1.2));
@@ -315,7 +319,6 @@ export const FloorplanItemViewPage: React.FC = () => {
             onMouseMove={handleMouseMove}
             onMouseUp={handleMouseUp}
             onMouseLeave={handleMouseUp}
-            onWheel={handleWheel}
           >
             {!imageError ? (
               <div

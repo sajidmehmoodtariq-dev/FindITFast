@@ -33,19 +33,17 @@ export const stockConfirmationService = {
         userId: string,
         type: 'GREEN' | 'YELLOW' | 'RED'
     ): Promise<StockConfirmationResult> {
-        // 1. Check rate limit
+        // 1. Check rate limit — single-field query only (compound queries require composite indexes
+        //    which hang indefinitely with offline persistence when missing)
         const sixHoursAgo = new Date(Date.now() - RATE_LIMIT_HOURS * MS_PER_HOUR);
         const eventsRef = collection(db, 'itemStatusEvents');
-        const q = query(
-            eventsRef,
-            where('itemId', '==', itemId),
-            where('userId', '==', userId)
-        );
+        const q = query(eventsRef, where('itemId', '==', itemId));
 
         const recentEvents = await getDocs(q);
         const recentWithinWindow = recentEvents.docs.filter((eventDoc) => {
-            const createdAt = eventDoc.data().createdAt as Timestamp | undefined;
-            return createdAt ? createdAt.toDate() >= sixHoursAgo : false;
+            const data = eventDoc.data();
+            const createdAt = data.createdAt as Timestamp | undefined;
+            return data.userId === userId && createdAt ? createdAt.toDate() >= sixHoursAgo : false;
         });
 
         if (recentWithinWindow.length > 0) {

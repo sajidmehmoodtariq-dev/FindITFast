@@ -31,14 +31,14 @@ export class ReportServiceClass {
    */
   static async submitReport(data: CreateReportData): Promise<string> {
     try {
-      // Create the report
+      // Create the report — omit undefined fields (Firestore rejects them)
       const reportData: Omit<Report, 'id'> = {
         itemId: data.itemId,
         storeId: data.storeId,
         type: data.type,
         timestamp: Timestamp.now(),
-        userId: data.userId,
-        location: data.location,
+        ...(data.userId !== undefined && { userId: data.userId }),
+        ...(data.location !== undefined && { location: data.location }),
       };
 
       const reportId = await ReportService.create(reportData);
