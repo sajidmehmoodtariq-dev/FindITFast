@@ -16,7 +16,20 @@ export const StoreRequestManager: React.FC = () => {
   } | null>(null);
 
   useEffect(() => {
-    loadStoreRequests();
+    setLoading(true);
+    const unsubscribe = StoreRequestService.subscribeToAllStoreRequests(
+      (allRequests) => {
+        setRequests(allRequests);
+        setLoading(false);
+        setError(null);
+      },
+      (err) => {
+        setError('Failed to load store requests');
+        console.error('Error loading store requests:', err);
+        setLoading(false);
+      }
+    );
+    return unsubscribe;
   }, []);
 
   const loadStoreRequests = async () => {
@@ -157,8 +170,26 @@ export const StoreRequestManager: React.FC = () => {
     <div className="space-y-6">
       {/* Header */}
       <div className="bg-white shadow rounded-lg p-6">
-        <h2 className="text-2xl font-bold text-gray-900 mb-2">Store Request Management</h2>
-        <p className="text-gray-600">Review and approve store creation requests from users.</p>
+        <div className="flex items-center justify-between mb-2">
+          <h2 className="text-2xl font-bold text-gray-900">Store Request Management</h2>
+          <button
+            onClick={loadStoreRequests}
+            disabled={loading}
+            className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 disabled:opacity-50 rounded-lg transition-colors"
+          >
+            <svg className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+            </svg>
+            Refresh
+          </button>
+        </div>
+        <div className="flex items-center gap-2 mb-2">
+          <p className="text-gray-600">Review and approve store creation requests from users.</p>
+          <span className="flex items-center gap-1 text-xs text-green-600 font-medium">
+            <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>
+            Live
+          </span>
+        </div>
         
         <div className="mt-4 grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
           <div className="bg-yellow-50 p-3 rounded-lg">

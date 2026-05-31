@@ -1,15 +1,18 @@
-import { 
-  collection, 
-  addDoc, 
-  getDocs, 
-  doc, 
-  updateDoc, 
+import {
+  collection,
+  addDoc,
+  getDocs,
+  getDocsFromServer,
+  onSnapshot,
+  doc,
+  updateDoc,
   setDoc,
-  query, 
-  orderBy, 
+  query,
+  orderBy,
   where,
   Timestamp,
-  serverTimestamp 
+  serverTimestamp,
+  type Unsubscribe
 } from 'firebase/firestore';
 import { db } from './firebase';
 import type { StoreRequest, Store } from '../types/index';
@@ -83,8 +86,8 @@ export class StoreRequestService {
         collection(db, this.COLLECTION_NAME),
         orderBy('requestedAt', 'desc')
       );
-      
-      const querySnapshot = await getDocs(q);
+      // Always fetch from server so admins see requests submitted after their last visit
+      const querySnapshot = await getDocsFromServer(q);
       return querySnapshot.docs.map(doc => ({
         id: doc.id,
         ...doc.data(),
@@ -94,6 +97,31 @@ export class StoreRequestService {
       console.error('Error fetching store requests:', error);
       throw new Error('Failed to fetch store requests.');
     }
+  }
+
+  static subscribeToAllStoreRequests(
+    onUpdate: (requests: StoreRequest[]) => void,
+    onError: (err: Error) => void
+  ): Unsubscribe {
+    const q = query(
+      collection(db, this.COLLECTION_NAME),
+      orderBy('requestedAt', 'desc')
+    );
+    return onSnapshot(
+      q,
+      (snapshot) => {
+        const requests = snapshot.docs.map(doc => ({
+          id: doc.id,
+          ...doc.data(),
+          requestedAt: doc.data().requestedAt?.toDate() || new Date(),
+        })) as StoreRequest[];
+        onUpdate(requests);
+      },
+      (error) => {
+        console.error('Store request subscription error:', error);
+        onError(new Error('Failed to receive store request updates.'));
+      }
+    );
   }
 
   /**

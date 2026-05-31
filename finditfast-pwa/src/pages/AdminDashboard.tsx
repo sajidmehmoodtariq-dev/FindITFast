@@ -1208,11 +1208,17 @@ export const AdminDashboard: React.FC = () => {
       loadStores();
     }
 
-    // Set up real-time listener for pending requests
+    // Real-time listener for pending requests — updates both the count badge and the list
     if (isAppAdmin) {
       const unsubscribeRequests = onSnapshot(
         query(collection(db, 'storeRequests'), where('status', '==', 'pending')),
         (snapshot) => {
+          const pending = snapshot.docs.map(doc => ({
+            id: doc.id,
+            ...doc.data(),
+            submittedAt: doc.data().submittedAt?.toDate() || new Date(),
+          }));
+          setPendingRequests(pending);
           setStats(prev => ({ ...prev, pendingRequests: snapshot.size }));
         },
         (error) => {
@@ -1234,6 +1240,24 @@ export const AdminDashboard: React.FC = () => {
       loadAnalyticsData();
     }
   }, [activeTab, isAppAdmin]);
+
+  const loadPendingRequests = async () => {
+    try {
+      const { getDocsFromServer } = await import('firebase/firestore');
+      const snapshot = await getDocsFromServer(
+        query(collection(db, 'storeRequests'), where('status', '==', 'pending'))
+      );
+      const pending = snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data(),
+        submittedAt: doc.data().submittedAt?.toDate() || new Date(),
+      }));
+      setPendingRequests(pending);
+      setStats(prev => ({ ...prev, pendingRequests: pending.length }));
+    } catch (err) {
+      console.error('Error refreshing pending requests:', err);
+    }
+  };
 
   // Simulate loading stats
   useEffect(() => {
@@ -1983,6 +2007,20 @@ export const AdminDashboard: React.FC = () => {
                     <p className="text-gray-600">Review and approve new store registrations</p>
                   </div>
                   <div className="flex items-center space-x-2">
+                    <span className="inline-flex items-center gap-1 text-xs text-green-600 font-medium">
+                      <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>
+                      Live
+                    </span>
+                    <button
+                      onClick={loadPendingRequests}
+                      className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors"
+                      title="Force refresh from server"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                      </svg>
+                      Refresh
+                    </button>
                     <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
                       {stats.pendingRequests} Pending
                     </span>
