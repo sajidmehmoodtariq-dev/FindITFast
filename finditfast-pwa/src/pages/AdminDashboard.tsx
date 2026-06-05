@@ -774,17 +774,39 @@ export const AdminDashboard: React.FC = () => {
       
       // HARD DELETE the store owner from storeOwners collection (if exists)
       try {
-        const storeOwnerQuery = query(
-          collection(db, 'storeOwners'),
-          where('firebaseUid', '==', ownerId)
-        );
-        const storeOwnerSnapshot = await getDocs(storeOwnerQuery);
-        
-        for (const ownerDoc of storeOwnerSnapshot.docs) {
-          await deleteDoc(doc(db, 'storeOwners', ownerDoc.id));
-          console.log(`✅ DELETED store owner: ${ownerDoc.id}`);
+        // 1. Try deleting directly by document ID (most common)
+        try {
+          await deleteDoc(doc(db, 'storeOwners', ownerId));
+          console.log(`✅ DELETED store owner directly by ID: ${ownerId}`);
+        } catch (e) {
+          // Ignore error if it doesn't exist by direct ID
         }
-        console.log(`👤 DELETED ${storeOwnerSnapshot.size} store owner records`);
+
+        // 2. Query by uid field
+        const queryByUid = query(collection(db, 'storeOwners'), where('uid', '==', ownerId));
+        const snapshotByUid = await getDocs(queryByUid);
+        for (const ownerDoc of snapshotByUid.docs) {
+          await deleteDoc(doc(db, 'storeOwners', ownerDoc.id));
+          console.log(`✅ DELETED store owner by uid field: ${ownerDoc.id}`);
+        }
+
+        // 3. Query by firebaseUid field (legacy)
+        const queryByFirebaseUid = query(collection(db, 'storeOwners'), where('firebaseUid', '==', ownerId));
+        const snapshotByFirebaseUid = await getDocs(queryByFirebaseUid);
+        for (const ownerDoc of snapshotByFirebaseUid.docs) {
+          await deleteDoc(doc(db, 'storeOwners', ownerDoc.id));
+          console.log(`✅ DELETED store owner by firebaseUid field: ${ownerDoc.id}`);
+        }
+        
+        // 4. Query by email field if ownerId looks like an email
+        if (ownerId.includes('@')) {
+          const queryByEmail = query(collection(db, 'storeOwners'), where('email', '==', ownerId));
+          const snapshotByEmail = await getDocs(queryByEmail);
+          for (const ownerDoc of snapshotByEmail.docs) {
+            await deleteDoc(doc(db, 'storeOwners', ownerDoc.id));
+            console.log(`✅ DELETED store owner by email field: ${ownerDoc.id}`);
+          }
+        }
       } catch (error) {
         console.warn('⚠️ Error deleting store owner record:', error);
       }
